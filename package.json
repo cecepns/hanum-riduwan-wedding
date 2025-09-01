@@ -1,7 +1,7 @@
 {
   "name": "bingkai-foto-app",
   "version": "1.0.0",
-  "description": "Enhanced aplikasi web untuk menambahkan bingkai pada foto dan video dengan processing berkualitas tinggi menggunakan FFmpeg.js dan optimized MediaRecorder",
+  "description": "Enhanced aplikasi web untuk menambahkan bingkai pada foto dan video dengan processing berkualitas tinggi menggunakan FFmpeg.js. Dilengkapi progress bar yang berfungsi dan video processing tanpa lag.",
   "main": "index.html",
   "scripts": {
     "start": "python3 -m http.server 8000",
@@ -40,8 +40,10 @@
     "last 2 versions",
     "not dead"
   ],
-  "devDependencies": {},
-  "dependencies": {},
+  "dependencies": {
+    "@ffmpeg/ffmpeg": "^0.12.15",
+    "@ffmpeg/util": "^0.12.2"
+  },
   "files": [
     "index.html",
     "styles.css",

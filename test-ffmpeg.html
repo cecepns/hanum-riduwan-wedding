@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test FFmpeg.js Implementation</title>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            padding: 20px; 
+            background: #f5f5f5;
+        }
+        .test-container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 15px;
+            border: 2px solid #e9ecef;
+            border-radius: 8px;
+        }
+        .test-result {
+            margin: 10px 0;
+            padding: 10px;
+            border-radius: 5px;
+        }
+        .success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        .info { background: #d1ecf1; color: #0c5460; border: 1px solid #bee5eb; }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover { background: #0056b3; }
+        button:disabled { background: #6c757d; cursor: not-allowed; }
+        .progress-bar {
+            width: 100%;
+            height: 20px;
+            background: #e9ecef;
+            border-radius: 10px;
+            overflow: hidden;
+            margin: 10px 0;
+        }
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+    </style>
+</head>
+<body>
+    <div class="test-container">
+        <h1>🧪 Test FFmpeg.js Implementation</h1>
+        <p>Testing video processor dengan FFmpeg.js dan progress bar functionality</p>
+
+        <div class="test-section">
+            <h3>1. Library Loading Test</h3>
+            <button id="testLibraries">Test Library Loading</button>
+            <div id="libraryResults"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>2. VideoProcessor Initialization Test</h3>
+            <button id="testProcessor">Test Processor Init</button>
+            <div id="processorResults"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>3. Frame Loading Test</h3>
+            <button id="testFrame">Test Frame Loading</button>
+            <div id="frameResults"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>4. Progress Bar Test</h3>
+            <button id="testProgress">Test Progress Bar</button>
+            <div class="progress-bar" id="testProgressBar">
+                <div class="progress-fill" id="testProgressFill"></div>
+            </div>
+            <div id="progressResults"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>5. Video Upload & Process Test</h3>
+            <input type="file" id="testVideoInput" accept="video/*">
+            <button id="testVideoProcess" disabled>Test Video Processing</button>
+            <div class="progress-bar" id="videoProgressBar" style="display: none;">
+                <div class="progress-fill" id="videoProgressFill"></div>
+            </div>
+            <div id="videoResults"></div>
+        </div>
+    </div>
+
+    <!-- Load dependencies in correct order -->
+    <script src="https://unpkg.com/@ffmpeg/ffmpeg@0.12.15/dist/umd/ffmpeg.js"></script>
+    <script src="https://unpkg.com/@ffmpeg/util@0.12.2/dist/umd/util.js"></script>
+    <script src="video-processor-ffmpeg-umd.js"></script>
+    <script>
+        class FFmpegTester {
+            constructor() {
+                this.processor = null;
+                this.testVideo = null;
+                this.initializeTests();
+            }
+
+            initializeTests() {
+                document.getElementById('testLibraries').onclick = () => this.testLibraries();
+                document.getElementById('testProcessor').onclick = () => this.testProcessor();
+                document.getElementById('testFrame').onclick = () => this.testFrame();
+                document.getElementById('testProgress').onclick = () => this.testProgressBar();
+                document.getElementById('testVideoInput').onchange = (e) => this.handleVideoUpload(e);
+                document.getElementById('testVideoProcess').onclick = () => this.testVideoProcessing();
+            }
+
+            log(containerId, message, type = 'info') {
+                const container = document.getElementById(containerId);
+                const div = document.createElement('div');
+                div.className = `test-result ${type}`;
+                div.innerHTML = `<strong>${new Date().toLocaleTimeString()}:</strong> ${message}`;
+                container.appendChild(div);
+                console.log(`[${type.toUpperCase()}] ${message}`);
+            }
+
+            async testLibraries() {
+                this.log('libraryResults', 'Testing library loading...', 'info');
+                
+                try {
+                    // Test FFmpeg availability
+                    if (typeof FFmpeg !== 'undefined') {
+                        this.log('libraryResults', '✅ FFmpeg.js loaded successfully', 'success');
+                    } else {
+                        this.log('libraryResults', '❌ FFmpeg.js not available', 'error');
+                    }
+
+                    // Test FFmpegUtil availability
+                    if (typeof FFmpegUtil !== 'undefined') {
+                        this.log('libraryResults', '✅ FFmpegUtil loaded successfully', 'success');
+                    } else {
+                        this.log('libraryResults', '❌ FFmpegUtil not available', 'error');
+                    }
+
+                    // Test VideoProcessor availability
+                    if (typeof VideoProcessor !== 'undefined') {
+                        this.log('libraryResults', '✅ VideoProcessor class available', 'success');
+                    } else {
+                        this.log('libraryResults', '❌ VideoProcessor class not available', 'error');
+                    }
+
+                } catch (error) {
+                    this.log('libraryResults', `❌ Error testing libraries: ${error.message}`, 'error');
+                }
+            }
+
+            async testProcessor() {
+                this.log('processorResults', 'Testing processor initialization...', 'info');
+                
+                try {
+                    this.processor = new VideoProcessor();
+                    this.log('processorResults', '✅ VideoProcessor created successfully', 'success');
+                    
+                    const initResult = await this.processor.initialize();
+                    if (initResult) {
+                        this.log('processorResults', '✅ VideoProcessor initialized successfully', 'success');
+                        this.log('processorResults', `Using: ${this.processor.useFFmpeg ? 'FFmpeg.js' : 'Fallback MediaRecorder'}`, 'info');
+                    } else {
+                        this.log('processorResults', '⚠️ VideoProcessor initialized with fallback', 'info');
+                    }
+                } catch (error) {
+                    this.log('processorResults', `❌ Error initializing processor: ${error.message}`, 'error');
+                }
+            }
+
+            async testFrame() {
+                this.log('frameResults', 'Testing frame loading...', 'info');
+                
+                try {
+                    if (!this.processor) {
+                        await this.testProcessor();
+                    }
+                    
+                    await this.processor.loadFrame('bingkai.png');
+                    this.log('frameResults', '✅ Frame image loaded successfully', 'success');
+                } catch (error) {
+                    this.log('frameResults', `❌ Error loading frame: ${error.message}`, 'error');
+                }
+            }
+
+            testProgressBar() {
+                this.log('progressResults', 'Testing progress bar animation...', 'info');
+                
+                const progressBar = document.getElementById('testProgressBar');
+                const progressFill = document.getElementById('testProgressFill');
+                
+                progressBar.style.display = 'block';
+                progressFill.style.width = '0%';
+                
+                let progress = 0;
+                const interval = setInterval(() => {
+                    progress += 10;
+                    progressFill.style.width = `${progress}%`;
+                    this.log('progressResults', `Progress: ${progress}%`, 'info');
+                    
+                    if (progress >= 100) {
+                        clearInterval(interval);
+                        this.log('progressResults', '✅ Progress bar test completed', 'success');
+                        setTimeout(() => {
+                            progressBar.style.display = 'none';
+                            progressFill.style.width = '0%';
+                        }, 2000);
+                    }
+                }, 500);
+            }
+
+            handleVideoUpload(event) {
+                const file = event.target.files[0];
+                if (file && file.type.startsWith('video/')) {
+                    this.testVideo = file;
+                    document.getElementById('testVideoProcess').disabled = false;
+                    this.log('videoResults', `✅ Video selected: ${file.name} (${(file.size / 1024 / 1024).toFixed(1)}MB)`, 'success');
+                } else {
+                    this.log('videoResults', '❌ Please select a valid video file', 'error');
+                }
+            }
+
+            async testVideoProcessing() {
+                if (!this.testVideo) {
+                    this.log('videoResults', '❌ No video selected', 'error');
+                    return;
+                }
+
+                this.log('videoResults', 'Starting video processing test...', 'info');
+                
+                try {
+                    if (!this.processor) {
+                        await this.testProcessor();
+                    }
+
+                    // Create video element
+                    const videoElement = document.createElement('video');
+                    videoElement.src = URL.createObjectURL(this.testVideo);
+                    videoElement.muted = true;
+                    
+                    await new Promise((resolve) => {
+                        videoElement.onloadeddata = resolve;
+                    });
+
+                    const progressBar = document.getElementById('videoProgressBar');
+                    const progressFill = document.getElementById('videoProgressFill');
+                    
+                    progressBar.style.display = 'block';
+                    progressFill.style.width = '0%';
+
+                    const startTime = Date.now();
+                    
+                    const processedBlob = await this.processor.processVideo(
+                        videoElement,
+                        (progress) => {
+                            const percentage = Math.round(progress * 100);
+                            progressFill.style.width = `${percentage}%`;
+                            this.log('videoResults', `Processing: ${percentage}%`, 'info');
+                        },
+                        'mp4'
+                    );
+
+                    const processingTime = (Date.now() - startTime) / 1000;
+                    this.log('videoResults', `✅ Video processed successfully in ${processingTime.toFixed(1)}s`, 'success');
+                    this.log('videoResults', `Output size: ${(processedBlob.size / 1024 / 1024).toFixed(1)}MB`, 'info');
+                    
+                    // Create download link
+                    const url = URL.createObjectURL(processedBlob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `test-processed-${Date.now()}.mp4`;
+                    a.textContent = '📥 Download Processed Video';
+                    a.style.display = 'block';
+                    a.style.margin = '10px 0';
+                    a.style.padding = '10px';
+                    a.style.background = '#28a745';
+                    a.style.color = 'white';
+                    a.style.textDecoration = 'none';
+                    a.style.borderRadius = '5px';
+                    
+                    document.getElementById('videoResults').appendChild(a);
+
+                } catch (error) {
+                    this.log('videoResults', `❌ Video processing failed: ${error.message}`, 'error');
+                } finally {
+                    setTimeout(() => {
+                        document.getElementById('videoProgressBar').style.display = 'none';
+                        document.getElementById('videoProgressFill').style.width = '0%';
+                    }, 2000);
+                }
+            }
+        }
+
+        // Initialize tester when page loads
+        document.addEventListener('DOMContentLoaded', () => {
+            new FFmpegTester();
+        });
+    </script>
+</body>
+</html>

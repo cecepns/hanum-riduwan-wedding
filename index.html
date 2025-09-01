@@ -84,8 +84,12 @@
         </div>
     </div>
 
-    <script src="video-processor-enhanced.js"></script>
+    <!-- Load FFmpeg.js from CDN -->
+    <script src="https://unpkg.com/@ffmpeg/ffmpeg@0.12.15/dist/umd/ffmpeg.js"></script>
+    <script src="https://unpkg.com/@ffmpeg/util@0.12.2/dist/umd/util.js"></script>
+    <script src="video-processor-ffmpeg-umd.js"></script>
     <script>
+        
         class PhotoFrameApp {
             constructor() {
                 this.stream = null;
@@ -93,7 +97,7 @@
                 this.recordedChunks = [];
                 this.isRecording = false;
                 this.currentMode = null; // 'photo', 'video', 'upload'
-                this.videoProcessor = new EnhancedVideoProcessor();
+                this.videoProcessor = null; // Will be initialized
                 this.uploadedVideoFile = null; // Store original uploaded video file
                 this.recordedVideoBlob = null; // Store recorded video blob
                 
@@ -143,10 +147,15 @@
 
             async initializeVideoProcessor() {
                 try {
+                    // Initialize the new FFmpeg-based video processor
+                    this.videoProcessor = new VideoProcessor();
+                    await this.videoProcessor.initialize();
                     await this.videoProcessor.loadFrame('bingkai.png');
-                    console.log('Video processor initialized successfully');
+                    console.log('FFmpeg video processor initialized successfully');
                 } catch (error) {
                     console.error('Failed to initialize video processor:', error);
+                    // Fallback to basic processor if FFmpeg fails
+                    this.showStatus('Menggunakan fallback processor (kualitas standar)', 'warning');
                 }
             }
 
@@ -566,22 +575,22 @@
                                 videoElement.onloadeddata = resolve;
                             });
                             
-                            // Show initial progress
-                            this.progressFill.style.width = '5%';
-                            this.downloadResultBtn.innerHTML = '<span class="loading"></span> 5%';
-                            this.downloadResultPreviewBtn.innerHTML = '<span class="loading"></span> 5%';
-                            
-                            processedVideoBlob = await this.videoProcessor.processVideo(
-                                videoElement,
-                                (progress) => {
-                                    const percentage = Math.round(progress * 100);
-                                    console.log('UI Progress update (recorded):', percentage + '%');
-                                    this.progressFill.style.width = `${percentage}%`;
-                                    this.downloadResultBtn.innerHTML = `<span class="loading"></span> ${percentage}%`;
-                                    this.downloadResultPreviewBtn.innerHTML = `<span class="loading"></span> ${percentage}%`;
-                                },
-                                'mp4' // Specify format explicitly
-                            );
+                                                    // Show initial progress
+                        this.updateProgress(5, 'Mempersiapkan video...');
+                        
+                        processedVideoBlob = await this.videoProcessor.processVideo(
+                            videoElement,
+                            (progress) => {
+                                const percentage = Math.round(progress * 100);
+                                const statusText = percentage < 20 ? 'Mempersiapkan...' :
+                                                 percentage < 60 ? 'Memproses video...' :
+                                                 percentage < 90 ? 'Menambahkan bingkai...' :
+                                                 'Finalisasi...';
+                                console.log('FFmpeg Progress (recorded):', percentage + '%', statusText);
+                                this.updateProgress(percentage, statusText);
+                            },
+                            'mp4' // Specify format explicitly
+                        );
                         } else if (this.uploadedVideoFile) {
                             // For uploaded videos, use the original file
                             const videoElement = document.createElement('video');
@@ -593,30 +602,28 @@
                                 videoElement.onloadeddata = resolve;
                             });
                             
-                            // Show initial progress
-                            this.progressFill.style.width = '5%';
-                            this.downloadResultBtn.innerHTML = '<span class="loading"></span> 5%';
-                            this.downloadResultPreviewBtn.innerHTML = '<span class="loading"></span> 5%';
-                            
-                            processedVideoBlob = await this.videoProcessor.processVideo(
-                                videoElement,
-                                (progress) => {
-                                    const percentage = Math.round(progress * 100);
-                                    console.log('UI Progress update (uploaded):', percentage + '%');
-                                    this.progressFill.style.width = `${percentage}%`;
-                                    this.downloadResultBtn.innerHTML = `<span class="loading"></span> ${percentage}%`;
-                                    this.downloadResultPreviewBtn.innerHTML = `<span class="loading"></span> ${percentage}%`;
-                                },
-                                'mp4' // Specify format explicitly
-                            );
+                                                    // Show initial progress
+                        this.updateProgress(5, 'Mempersiapkan video...');
+                        
+                        processedVideoBlob = await this.videoProcessor.processVideo(
+                            videoElement,
+                            (progress) => {
+                                const percentage = Math.round(progress * 100);
+                                const statusText = percentage < 20 ? 'Mempersiapkan...' :
+                                                 percentage < 60 ? 'Memproses video...' :
+                                                 percentage < 90 ? 'Menambahkan bingkai...' :
+                                                 'Finalisasi...';
+                                console.log('FFmpeg Progress (uploaded):', percentage + '%', statusText);
+                                this.updateProgress(percentage, statusText);
+                            },
+                            'mp4' // Specify format explicitly
+                        );
                         } else {
                             throw new Error('Video source tidak ditemukan');
                         }
 
-                        // Final progress update to 100%
-                        this.progressFill.style.width = '100%';
-                        this.downloadResultBtn.innerHTML = '<span class="loading"></span> 100%';
-                        this.downloadResultPreviewBtn.innerHTML = '<span class="loading"></span> 100%';
+                                            // Final progress update to 100%
+                    this.updateProgress(100, 'Selesai!');
                         
                         // Download processed video with appropriate extension
                         const url = URL.createObjectURL(processedVideoBlob);
@@ -645,20 +652,31 @@
                             console.log('Could not get metadata:', e);
                         }
 
-                        // Show enhanced success message with processing info
-                        const processingMethod = this.videoProcessor.ffmpegLoaded ? 'FFmpeg (Kualitas Tinggi)' : 'MediaRecorder (Optimized)';
-                        this.showStatus(`Video berhasil didownload! Metode: ${processingMethod} | Ukuran: ${(processedVideoBlob.size / (1024*1024)).toFixed(1)}MB`, 'success');
+                                            // Show enhanced success message with processing info
+                    const processingMethod = this.videoProcessor.useFFmpeg ? 'FFmpeg.js (Kualitas Tinggi)' : 'MediaRecorder (Fallback)';
+                    this.showStatus(`Video berhasil didownload! Metode: ${processingMethod} | Ukuran: ${(processedVideoBlob.size / (1024*1024)).toFixed(1)}MB`, 'success');
                     } catch (error) {
                         this.showStatus('Gagal memproses video: ' + error.message, 'error');
                         console.error('Video processing error:', error);
-                    } finally {
-                        this.setDownloadButtonsEnabled(true);
-                        this.downloadResultBtn.innerHTML = 'Download Hasil';
-                        this.downloadResultPreviewBtn.innerHTML = '📥 Download Hasil';
-                        this.progressBar.style.display = 'none';
-                        this.progressFill.style.width = '0%';
-                    }
+                                    } finally {
+                    this.resetProgress();
                 }
+                }
+            }
+
+            updateProgress(percentage, statusText = '') {
+                this.progressFill.style.width = `${percentage}%`;
+                const displayText = statusText ? `${percentage}% - ${statusText}` : `${percentage}%`;
+                this.downloadResultBtn.innerHTML = `<span class="loading"></span> ${displayText}`;
+                this.downloadResultPreviewBtn.innerHTML = `<span class="loading"></span> ${displayText}`;
+            }
+            
+            resetProgress() {
+                this.setDownloadButtonsEnabled(true);
+                this.downloadResultBtn.innerHTML = 'Download Hasil';
+                this.downloadResultPreviewBtn.innerHTML = '📥 Download Hasil';
+                this.progressBar.style.display = 'none';
+                this.progressFill.style.width = '0%';
             }
 
             resetAll() {
@@ -676,13 +694,14 @@
                 this.currentMode = null;
                 this.uploadedVideoFile = null;
                 this.recordedVideoBlob = null;
+                this.resetProgress();
                 this.showStatus('Semua data telah direset', 'info');
             }
         }
 
         // Initialize app when page loads
         document.addEventListener('DOMContentLoaded', () => {
-            new PhotoFrameApp();
+            window.app = new PhotoFrameApp();
         });
     </script>
 </body>
