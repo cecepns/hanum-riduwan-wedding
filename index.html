@@ -137,8 +137,13 @@
                 this.startCameraBtn.addEventListener('click', () => this.startCamera());
                 this.stopCameraBtn.addEventListener('click', () => this.stopCamera());
                 this.capturePhotoBtn.addEventListener('click', () => this.capturePhoto());
-                this.startVideoBtn.addEventListener('click', () => this.startVideoRecording());
-                this.stopVideoBtn.addEventListener('click', () => this.stopVideoRecording());
+                // Video recording buttons are commented out in HTML
+                if (this.startVideoBtn) {
+                    this.startVideoBtn.addEventListener('click', () => this.startVideoRecording());
+                }
+                if (this.stopVideoBtn) {
+                    this.stopVideoBtn.addEventListener('click', () => this.stopVideoRecording());
+                }
                 this.resetAllBtn.addEventListener('click', () => this.resetAll());
                 this.downloadResultBtn.addEventListener('click', () => this.downloadResult());
                 this.downloadResultPreviewBtn.addEventListener('click', () => this.downloadResult());
@@ -202,7 +207,9 @@
                     this.startCameraBtn.disabled = true;
                     this.stopCameraBtn.disabled = false;
                     this.capturePhotoBtn.disabled = false;
-                    this.startVideoBtn.disabled = false;
+                    if (this.startVideoBtn) {
+                        this.startVideoBtn.disabled = false;
+                    }
 
                     this.showStatus('Kamera berhasil dimulai!', 'success');
                 } catch (error) {
@@ -235,8 +242,12 @@
                 this.startCameraBtn.disabled = false;
                 this.stopCameraBtn.disabled = true;
                 this.capturePhotoBtn.disabled = true;
-                this.startVideoBtn.disabled = true;
-                this.stopVideoBtn.disabled = true;
+                if (this.startVideoBtn) {
+                    this.startVideoBtn.disabled = true;
+                }
+                if (this.stopVideoBtn) {
+                    this.stopVideoBtn.disabled = true;
+                }
 
                 this.showStatus('Kamera dihentikan', 'info');
             }
@@ -393,8 +404,12 @@
                 this.mediaRecorder.start(1000); // 1 second chunks for better stability
                 console.log('Recording started with 1s chunks');
                 this.isRecording = true;
-                this.startVideoBtn.disabled = true;
-                this.stopVideoBtn.disabled = false;
+                if (this.startVideoBtn) {
+                    this.startVideoBtn.disabled = true;
+                }
+                if (this.stopVideoBtn) {
+                    this.stopVideoBtn.disabled = false;
+                }
                 this.capturePhotoBtn.disabled = true;
 
                 this.showStatus('Perekaman video dimulai...', 'info');
@@ -404,20 +419,31 @@
                 if (this.mediaRecorder && this.isRecording) {
                     this.mediaRecorder.stop();
                     this.isRecording = false;
-                    this.startVideoBtn.disabled = false;
-                    this.stopVideoBtn.disabled = true;
+                    if (this.startVideoBtn) {
+                        this.startVideoBtn.disabled = false;
+                    }
+                    if (this.stopVideoBtn) {
+                        this.stopVideoBtn.disabled = true;
+                    }
                     this.capturePhotoBtn.disabled = false;
                 }
             }
 
             handleFileUpload(event) {
+                console.log('=== FILE UPLOAD DEBUG ===');
                 const file = event.target.files[0];
-                if (!file) return;
+                console.log('Selected file:', file);
+                if (!file) {
+                    console.log('No file selected');
+                    return;
+                }
 
                 const isImage = file.type.startsWith('image/');
                 const isVideo = file.type.startsWith('video/');
+                console.log('File type:', file.type, 'isImage:', isImage, 'isVideo:', isVideo);
 
                 if (!isImage && !isVideo) {
+                    console.log('Unsupported file format');
                     this.showStatus('Format file tidak didukung', 'error');
                     return;
                 }
@@ -436,8 +462,11 @@
             }
 
             processImageFile(dataUrl) {
+                console.log('=== PROCESS IMAGE FILE ===');
+                console.log('Processing image with dataUrl length:', dataUrl.length);
                 const img = new Image();
                 img.onload = () => {
+                    console.log('Image loaded successfully');
                     // Set canvas size to reels format (1080x1920 - portrait)
                     const targetWidth = 1080;
                     const targetHeight = 1920;
@@ -487,12 +516,14 @@
                         this.ctx.drawImage(frameImg, 0, 0, targetWidth, targetHeight);
                         
                         // Show canvas with frame inside preview container
+                        console.log('Showing canvas in preview container');
                         this.previewContainer.innerHTML = '';
                         this.canvasContainer.style.display = 'block';
                         this.previewContainer.appendChild(this.canvasContainer);
                         this.previewContainer.classList.add('has-content');
                         this.videoPreview.style.display = 'none';
                         this.setDownloadButtonsEnabled(true);
+                        console.log('Preview container updated with canvas');
                         
                         // Debug: Log canvas dimensions and scaling info
                         console.log('=== UPLOAD IMAGE DEBUG ===');
@@ -513,6 +544,8 @@
             }
 
             processVideoFile(file) {
+                console.log('=== PROCESS VIDEO FILE ===');
+                console.log('Processing video file:', file.name, 'size:', file.size, 'type:', file.type);
                 const videoElement = document.createElement('video');
                 videoElement.src = URL.createObjectURL(file);
                 videoElement.controls = true;
@@ -524,6 +557,7 @@
                 videoElement.muted = false; // Enable audio
                 videoElement.volume = 1.0;
                 
+                console.log('Adding video element to preview container');
                 this.previewContainer.innerHTML = '';
                 this.previewContainer.appendChild(videoElement);
                 this.previewContainer.classList.add('has-content');
@@ -533,6 +567,7 @@
                 this.setDownloadButtonsEnabled(true);
                 
                 this.currentMode = 'video';
+                console.log('Video preview updated successfully');
                 this.showStatus('Video pernikahan berhasil diupload!', 'success');
             }
 
