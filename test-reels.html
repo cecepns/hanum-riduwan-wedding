@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Reels Format</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+            background: #f0f0f0;
+        }
+        
+        .test-container {
+            max-width: 400px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+        }
+        
+        .reels-frame {
+            width: 270px;
+            height: 480px;
+            border: 2px solid #333;
+            margin: 20px auto;
+            background: #000;
+            border-radius: 10px;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .reels-content {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        
+        .dimensions {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: rgba(255,255,255,0.8);
+            padding: 5px 10px;
+            border-radius: 5px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        
+        canvas {
+            width: 270px !important;
+            height: 480px !important;
+            border-radius: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="test-container">
+        <h1>Test Format Reels (1080x1920)</h1>
+        <p>Ini adalah preview ukuran yang benar untuk format reels</p>
+        
+        <div class="reels-frame">
+            <div class="dimensions">1080x1920</div>
+            <canvas id="testCanvas" width="1080" height="1920"></canvas>
+        </div>
+        
+        <button onclick="testReelsFormat()">Test Canvas</button>
+        <button onclick="downloadTest()">Download Test</button>
+        
+        <div id="info"></div>
+    </div>
+
+    <script>
+        function testReelsFormat() {
+            const canvas = document.getElementById('testCanvas');
+            const ctx = canvas.getContext('2d');
+            
+            // Set actual canvas size
+            canvas.width = 1080;
+            canvas.height = 1920;
+            
+            // Fill with black background
+            ctx.fillStyle = '#000000';
+            ctx.fillRect(0, 0, 1080, 1920);
+            
+            // Simulate a landscape image (1920x1080) being fitted into portrait canvas
+            // This shows how FILL algorithm works vs FIT algorithm
+            
+            // Draw test pattern for landscape source
+            ctx.fillStyle = '#333333';
+            ctx.fillRect(0, 0, 1080, 1920); // Full canvas dark gray
+            
+            // Simulate landscape content filling the portrait canvas
+            const sourceWidth = 1920;  // Landscape image
+            const sourceHeight = 1080;
+            const sourceAspect = sourceWidth / sourceHeight; // 1.777
+            const targetAspect = 1080 / 1920; // 0.5625
+            
+            let drawWidth, drawHeight, offsetX, offsetY;
+            
+            // FILL algorithm (what we want) - crop to fill entire canvas
+            if (sourceAspect > targetAspect) {
+                // Source is wider, fit to height (crop sides)
+                drawHeight = 1920;
+                drawWidth = 1920 * sourceAspect;
+                offsetX = (1080 - drawWidth) / 2;
+                offsetY = 0;
+            } else {
+                // Source is taller, fit to width (crop top/bottom)
+                drawWidth = 1080;
+                drawHeight = 1080 / sourceAspect;
+                offsetX = 0;
+                offsetY = (1920 - drawHeight) / 2;
+            }
+            
+            // Draw the "image content" area
+            ctx.fillStyle = '#4444ff';
+            ctx.fillRect(offsetX, offsetY, drawWidth, drawHeight);
+            
+            // Draw test pattern
+            ctx.fillStyle = '#ff0000';
+            ctx.fillRect(0, 0, 1080, 100); // Top red bar
+            
+            ctx.fillStyle = '#00ff00';
+            ctx.fillRect(0, 1820, 1080, 100); // Bottom green bar
+            
+            ctx.fillStyle = '#0000ff';
+            ctx.fillRect(0, 910, 1080, 100); // Middle blue bar
+            
+            // Draw text
+            ctx.fillStyle = '#ffffff';
+            ctx.font = '48px Arial';
+            ctx.textAlign = 'center';
+            ctx.fillText('REELS FORMAT', 540, 960);
+            ctx.fillText('1080 x 1920', 540, 1020);
+            ctx.fillText('FILL MODE', 540, 1080);
+            
+            // Update info
+            document.getElementById('info').innerHTML = `
+                <p><strong>Canvas Internal:</strong> ${canvas.width} x ${canvas.height}</p>
+                <p><strong>Canvas Display:</strong> ${canvas.style.width} x ${canvas.style.height}</p>
+                <p><strong>Aspect Ratio:</strong> ${(canvas.height / canvas.width).toFixed(3)} (should be 1.778 for 9:16)</p>
+                <p><strong>Source:</strong> ${sourceWidth}x${sourceHeight} (landscape)</p>
+                <p><strong>Draw Size:</strong> ${Math.round(drawWidth)}x${Math.round(drawHeight)}</p>
+                <p><strong>Offset:</strong> ${Math.round(offsetX)}, ${Math.round(offsetY)}</p>
+            `;
+        }
+        
+        function downloadTest() {
+            const canvas = document.getElementById('testCanvas');
+            canvas.toBlob((blob) => {
+                console.log('Test download blob size:', blob.size, 'bytes');
+                console.log('Test canvas dimensions:', canvas.width, 'x', canvas.height);
+                
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'test-reels-format.png';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            });
+        }
+        
+        // Auto test on load
+        window.onload = testReelsFormat;
+    </script>
+</body>
+</html>

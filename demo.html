@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Demo - Aplikasi Bingkai Foto & Video</title>
+    <link rel="stylesheet" href="styles.css">
+    <style>
+        .demo-container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        .demo-section {
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            margin: 20px 0;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+        }
+        
+        .demo-title {
+            color: #667eea;
+            font-size: 1.5rem;
+            margin-bottom: 15px;
+            border-bottom: 2px solid #667eea;
+            padding-bottom: 10px;
+        }
+        
+        .feature-list {
+            list-style: none;
+            padding: 0;
+        }
+        
+        .feature-list li {
+            padding: 10px 0;
+            border-bottom: 1px solid #eee;
+            display: flex;
+            align-items: center;
+        }
+        
+        .feature-list li:before {
+            content: "✅";
+            margin-right: 10px;
+            font-size: 1.2rem;
+        }
+        
+        .tech-stack {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin: 20px 0;
+        }
+        
+        .tech-item {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 10px;
+            text-align: center;
+            border: 2px solid #e9ecef;
+        }
+        
+        .tech-item:hover {
+            border-color: #667eea;
+            transform: translateY(-2px);
+        }
+        
+        .cta-button {
+            display: inline-block;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 15px 30px;
+            border-radius: 25px;
+            text-decoration: none;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            margin: 10px;
+        }
+        
+        .cta-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
+        }
+        
+        .screenshot {
+            max-width: 100%;
+            border-radius: 10px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+            margin: 20px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="demo-container">
+        <div class="demo-section">
+            <h1 class="demo-title">📸 Demo Aplikasi Bingkai Foto & Video</h1>
+            <p style="font-size: 1.1rem; color: #666; margin-bottom: 20px;">
+                Aplikasi web modern untuk menambahkan bingkai indah pada foto dan video Anda.
+            </p>
+            
+            <div style="text-align: center; margin: 30px 0;">
+                <a href="index.html" class="cta-button">🚀 Coba Aplikasi Sekarang</a>
+                <a href="README.md" class="cta-button">📖 Baca Dokumentasi</a>
+            </div>
+        </div>
+
+        <div class="demo-section">
+            <h2 class="demo-title">✨ Fitur Utama</h2>
+            <ul class="feature-list">
+                <li><strong>Capture Foto:</strong> Ambil foto langsung dari kamera web dengan kualitas HD</li>
+                <li><strong>Rekam Video:</strong> Rekam video dengan resolusi tinggi dan kontrol penuh</li>
+                <li><strong>Upload File:</strong> Upload foto/video dari perangkat dengan drag & drop</li>
+                <li><strong>Bingkai Otomatis:</strong> Bingkai PNG transparan dengan output format reels (1080x1920)</li>
+                <li><strong>Preview Real-time:</strong> Lihat hasil sebelum download</li>
+                <li><strong>Download Kualitas Tinggi:</strong> Simpan hasil dalam format PNG/WebM</li>
+                <li><strong>Progress Tracking:</strong> Monitor proses video dengan progress bar</li>
+                <li><strong>Responsive Design:</strong> Bekerja sempurna di desktop dan mobile</li>
+            </ul>
+        </div>
+
+        <div class="demo-section">
+            <h2 class="demo-title">🛠️ Teknologi yang Digunakan</h2>
+            <div class="tech-stack">
+                <div class="tech-item">
+                    <h3>HTML5</h3>
+                    <p>Struktur aplikasi dan elemen media modern</p>
+                </div>
+                <div class="tech-item">
+                    <h3>CSS3</h3>
+                    <p>Styling modern dengan gradient dan animasi</p>
+                </div>
+                <div class="tech-item">
+                    <h3>JavaScript ES6+</h3>
+                    <p>Logika aplikasi dengan class-based architecture</p>
+                </div>
+                <div class="tech-item">
+                    <h3>Web APIs</h3>
+                    <p>getUserMedia, MediaRecorder, Canvas API</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="demo-section">
+            <h2 class="demo-title">📱 Cara Menggunakan</h2>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px;">
+                <div style="background: #f8f9fa; padding: 20px; border-radius: 10px;">
+                    <h3>1. 📷 Mulai Kamera</h3>
+                    <p>Klik tombol "Mulai Kamera" dan izinkan akses kamera di browser Anda.</p>
+                </div>
+                <div style="background: #f8f9fa; padding: 20px; border-radius: 10px;">
+                    <h3>2. 🎯 Ambil Media</h3>
+                    <p>Pilih antara "Ambil Foto" atau "Mulai Video" sesuai kebutuhan Anda.</p>
+                </div>
+                <div style="background: #f8f9fa; padding: 20px; border-radius: 10px;">
+                    <h3>3. 🖼️ Bingkai Otomatis</h3>
+                    <p>Bingkai akan otomatis ditambahkan dengan format reels (1080x1920).</p>
+                </div>
+                <div style="background: #f8f9fa; padding: 20px; border-radius: 10px;">
+                    <h3>4. 💾 Download Hasil</h3>
+                    <p>Klik "Download Hasil" untuk menyimpan file dengan bingkai.</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="demo-section">
+            <h2 class="demo-title">🌐 Browser Support</h2>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px;">
+                <div style="text-align: center; padding: 15px; background: #d4edda; border-radius: 10px;">
+                    <h4>✅ Chrome 60+</h4>
+                </div>
+                <div style="text-align: center; padding: 15px; background: #d4edda; border-radius: 10px;">
+                    <h4>✅ Firefox 55+</h4>
+                </div>
+                <div style="text-align: center; padding: 15px; background: #d4edda; border-radius: 10px;">
+                    <h4>✅ Safari 11+</h4>
+                </div>
+                <div style="text-align: center; padding: 15px; background: #d4edda; border-radius: 10px;">
+                    <h4>✅ Edge 79+</h4>
+                </div>
+            </div>
+        </div>
+
+        <div class="demo-section">
+            <h2 class="demo-title">🔮 Fitur Mendatang</h2>
+            <ul class="feature-list">
+                <li>Multiple bingkai pilihan</li>
+                <li>Edit foto (crop, filter, brightness)</li>
+                <li>Share ke social media</li>
+                <li>Gallery hasil foto</li>
+                <li>Custom bingkai upload</li>
+                <li>Progressive Web App (PWA)</li>
+            </ul>
+        </div>
+
+        <div class="demo-section" style="text-align: center;">
+            <h2 class="demo-title">🚀 Siap Mencoba?</h2>
+            <p style="font-size: 1.2rem; margin-bottom: 30px;">
+                Aplikasi ini siap digunakan tanpa instalasi tambahan!
+            </p>
+            <a href="index.html" class="cta-button" style="font-size: 1.2rem; padding: 20px 40px;">
+                🎯 Mulai Sekarang
+            </a>
+        </div>
+    </div>
+
+    <script>
+        // Add some interactive elements
+        document.addEventListener('DOMContentLoaded', function() {
+            // Add hover effects to tech items
+            const techItems = document.querySelectorAll('.tech-item');
+            techItems.forEach(item => {
+                item.addEventListener('mouseenter', function() {
+                    this.style.transform = 'translateY(-5px)';
+                });
+                item.addEventListener('mouseleave', function() {
+                    this.style.transform = 'translateY(0)';
+                });
+            });
+
+            // Add click tracking for demo purposes
+            const ctaButtons = document.querySelectorAll('.cta-button');
+            ctaButtons.forEach(button => {
+                button.addEventListener('click', function() {
+                    console.log('Demo CTA clicked:', this.textContent);
+                });
+            });
+        });
+    </script>
+</body>
+</html>

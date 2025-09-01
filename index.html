@@ -1,0 +1,601 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>💒 Wedding Frame - Hanum & Riduwan</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>💒 Wedding Frame</h1>
+            <h2 style="font-size: 1.8rem; margin: 10px 0; font-weight: 400; color: #ffd700;">Hanum & Riduwan</h2>
+            <p>Ambil foto atau video dan tambahkan bingkai khusus untuk pernikahan kami</p>
+            <div style="margin-top: 15px; padding: 12px; background: rgba(255,255,255,0.15); border-radius: 12px; font-size: 0.9rem; border: 1px solid rgba(255,215,0,0.3);">
+                💍 <strong>Special Wedding Frame</strong> • 📱 Output: 1080x1920 (Reels/Portrait)
+            </div>
+        </div>
+
+        <div class="main-content">
+            <div id="status" class="status" style="display: none;"></div>
+
+            <div class="preview-container" id="previewContainer">
+                <div class="placeholder">
+                    <div>💒</div>
+                    <p>Mulai kamera atau upload file untuk melihat preview</p>
+                    <p style="font-size: 0.85rem; color: #888; margin-top: 8px;">Bingkai khusus pernikahan Hanum & Riduwan</p>
+                </div>
+            </div>
+
+            <video id="videoPreview" class="video-preview" autoplay muted playsinline style="display: none;"></video>
+            
+            <div class="canvas-container" id="canvasContainer" style="display: none;">
+                <canvas id="canvasOutput" class="canvas-output"></canvas>
+                <img id="frameOverlay" class="frame-overlay" src="bingkai.png" alt="Bingkai">
+            </div>
+
+            <div class="preview-download-section" style="text-align: center; margin: 20px 0;">
+                <button id="downloadResultPreview" class="btn btn-success" disabled style="padding: 12px 24px; font-size: 1.1rem; font-weight: 600;">
+                    📥 Download Hasil
+                </button>
+            </div>
+
+            <div class="download-section">
+                <div class="progress-bar" id="progressBar">
+                    <div class="progress-fill" id="progressFill"></div>
+                </div>
+                <a id="downloadLink" class="download-btn" style="display: none;">
+                    Download Hasil
+                </a>
+            </div>
+
+            <div class="controls">
+                <div class="control-group">
+                    <h3>📷 Kamera</h3>
+                    <button id="startCamera" class="btn">Mulai Kamera</button>
+                    <button id="stopCamera" class="btn btn-secondary" disabled>Stop Kamera</button>
+                    <button id="capturePhoto" class="btn btn-success" disabled>Ambil Foto</button>
+                    <button id="startVideo" class="btn btn-success" disabled>Mulai Video</button>
+                    <button id="stopVideo" class="btn btn-danger" disabled>Stop Video</button>
+                </div>
+
+                <div class="control-group">
+                    <h3>📁 Upload File</h3>
+                    <label for="fileInput" class="file-label">
+                        Pilih Foto/Video
+                    </label>
+                    <input type="file" id="fileInput" class="file-input" accept="image/*,video/*">
+                    <p style="margin-top: 10px; font-size: 0.9rem; color: #6c757d;">
+                        Dukungan: JPG, PNG, MP4, WebM
+                    </p>
+                    <p style="margin-top: 5px; font-size: 0.9rem; color: #d4a574; font-weight: 500;">
+                        💒 Wedding Frame • 📱 1080x1920 (Reels)
+                    </p>
+                </div>
+
+                <div class="control-group">
+                    <h3>⚙️ Pengaturan</h3>
+                    <button id="resetAll" class="btn btn-secondary">Reset Semua</button>
+                    <button id="downloadResult" class="btn btn-success" disabled>Download Hasil</button>
+                    <a href="https://drive.google.com/drive/folders/1U7lg3U5U_oxqkrN48tZ0IudGTQQz6xpO" target="_blank" class="btn" disabled>Upload ke drive</a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="video-processor.js"></script>
+    <script>
+        class PhotoFrameApp {
+            constructor() {
+                this.stream = null;
+                this.mediaRecorder = null;
+                this.recordedChunks = [];
+                this.isRecording = false;
+                this.currentMode = null; // 'photo', 'video', 'upload'
+                this.videoProcessor = new VideoFrameProcessor();
+                
+                this.initializeElements();
+                this.bindEvents();
+                this.initializeVideoProcessor();
+            }
+
+            initializeElements() {
+                // Buttons
+                this.startCameraBtn = document.getElementById('startCamera');
+                this.stopCameraBtn = document.getElementById('stopCamera');
+                this.capturePhotoBtn = document.getElementById('capturePhoto');
+                this.startVideoBtn = document.getElementById('startVideo');
+                this.stopVideoBtn = document.getElementById('stopVideo');
+                this.resetAllBtn = document.getElementById('resetAll');
+                this.downloadResultBtn = document.getElementById('downloadResult');
+                this.downloadResultPreviewBtn = document.getElementById('downloadResultPreview');
+
+                // Elements
+                this.videoPreview = document.getElementById('videoPreview');
+                this.canvasOutput = document.getElementById('canvasOutput');
+                this.canvasContainer = document.getElementById('canvasContainer');
+                this.frameOverlay = document.getElementById('frameOverlay');
+                this.previewContainer = document.getElementById('previewContainer');
+                this.fileInput = document.getElementById('fileInput');
+                this.status = document.getElementById('status');
+                this.downloadLink = document.getElementById('downloadLink');
+                this.progressBar = document.getElementById('progressBar');
+                this.progressFill = document.getElementById('progressFill');
+
+                // Canvas context
+                this.ctx = this.canvasOutput.getContext('2d');
+            }
+
+            bindEvents() {
+                this.startCameraBtn.addEventListener('click', () => this.startCamera());
+                this.stopCameraBtn.addEventListener('click', () => this.stopCamera());
+                this.capturePhotoBtn.addEventListener('click', () => this.capturePhoto());
+                this.startVideoBtn.addEventListener('click', () => this.startVideoRecording());
+                this.stopVideoBtn.addEventListener('click', () => this.stopVideoRecording());
+                this.resetAllBtn.addEventListener('click', () => this.resetAll());
+                this.downloadResultBtn.addEventListener('click', () => this.downloadResult());
+                this.downloadResultPreviewBtn.addEventListener('click', () => this.downloadResult());
+                this.fileInput.addEventListener('change', (e) => this.handleFileUpload(e));
+            }
+
+            async initializeVideoProcessor() {
+                try {
+                    await this.videoProcessor.loadFrame('bingkai.png');
+                    console.log('Video processor initialized successfully');
+                } catch (error) {
+                    console.error('Failed to initialize video processor:', error);
+                }
+            }
+
+            showStatus(message, type = 'info') {
+                this.status.textContent = message;
+                this.status.className = `status ${type}`;
+                this.status.style.display = 'block';
+                
+                setTimeout(() => {
+                    this.status.style.display = 'none';
+                }, 5000);
+            }
+
+            setDownloadButtonsEnabled(enabled) {
+                this.downloadResultBtn.disabled = !enabled;
+                this.downloadResultPreviewBtn.disabled = !enabled;
+            }
+
+            async startCamera() {
+                try {
+                    this.stream = await navigator.mediaDevices.getUserMedia({
+                        video: {
+                            width: { ideal: 1280 },
+                            height: { ideal: 720 },
+                            facingMode: 'user'
+                        },
+                        audio: true // Enable audio recording
+                    });
+
+                    // Clear preview container and add video inside it
+                    this.previewContainer.innerHTML = '';
+                    this.videoPreview.srcObject = this.stream;
+                    this.videoPreview.style.display = 'block';
+                    this.previewContainer.appendChild(this.videoPreview);
+                    this.previewContainer.classList.add('has-content');
+
+                    this.startCameraBtn.disabled = true;
+                    this.stopCameraBtn.disabled = false;
+                    this.capturePhotoBtn.disabled = false;
+                    this.startVideoBtn.disabled = false;
+
+                    this.showStatus('Kamera berhasil dimulai!', 'success');
+                } catch (error) {
+                    this.showStatus('Gagal mengakses kamera: ' + error.message, 'error');
+                }
+            }
+
+            stopCamera() {
+                if (this.stream) {
+                    this.stream.getTracks().forEach(track => track.stop());
+                    this.stream = null;
+                }
+
+                if (this.isRecording) {
+                    this.stopVideoRecording();
+                }
+
+                // Reset preview container to placeholder
+                this.previewContainer.innerHTML = `
+                    <div class="placeholder">
+                        <div>💒</div>
+                        <p>Mulai kamera atau upload file untuk melihat preview</p>
+                        <p style="font-size: 0.85rem; color: #888; margin-top: 8px;">Bingkai khusus pernikahan Hanum & Riduwan</p>
+                    </div>
+                `;
+                this.videoPreview.style.display = 'none';
+                this.canvasContainer.style.display = 'none';
+                this.previewContainer.classList.remove('has-content');
+
+                this.startCameraBtn.disabled = false;
+                this.stopCameraBtn.disabled = true;
+                this.capturePhotoBtn.disabled = true;
+                this.startVideoBtn.disabled = true;
+                this.stopVideoBtn.disabled = true;
+
+                this.showStatus('Kamera dihentikan', 'info');
+            }
+
+            capturePhoto() {
+                if (!this.stream) {
+                    this.showStatus('Kamera belum dimulai', 'error');
+                    return;
+                }
+
+                // Set canvas size to reels format (1080x1920 - portrait)
+                const targetWidth = 1080;
+                const targetHeight = 1920;
+                
+                // Force canvas dimensions
+                this.canvasOutput.width = targetWidth;
+                this.canvasOutput.height = targetHeight;
+                this.canvasOutput.style.width = '270px';
+                this.canvasOutput.style.height = '480px';
+
+                // Calculate scaling to fit video content within reels format
+                const videoWidth = this.videoPreview.videoWidth;
+                const videoHeight = this.videoPreview.videoHeight;
+                
+                // Calculate aspect ratios - for portrait reels, we want to FILL the canvas
+                const videoAspect = videoWidth / videoHeight;
+                const targetAspect = targetWidth / targetHeight; // 1080/1920 = 0.5625
+                
+                let drawWidth, drawHeight, offsetX, offsetY;
+                
+                // Always FILL the canvas (crop if needed) - this ensures no black bars
+                if (videoAspect > targetAspect) {
+                    // Video is wider than target, fit to height (crop sides)
+                    drawHeight = targetHeight;
+                    drawWidth = targetHeight * videoAspect;
+                    offsetX = (targetWidth - drawWidth) / 2; // Center horizontally
+                    offsetY = 0;
+                } else {
+                    // Video is taller than target, fit to width (crop top/bottom)
+                    drawWidth = targetWidth;
+                    drawHeight = targetWidth / videoAspect;
+                    offsetX = 0;
+                    offsetY = (targetHeight - drawHeight) / 2; // Center vertically
+                }
+
+                // Fill canvas with black background first
+                this.ctx.fillStyle = '#000000';
+                this.ctx.fillRect(0, 0, targetWidth, targetHeight);
+
+                // Draw video frame to canvas with proper scaling
+                this.ctx.drawImage(this.videoPreview, offsetX, offsetY, drawWidth, drawHeight);
+
+                // Load and draw frame overlay
+                const frameImg = new Image();
+                frameImg.onload = () => {
+                    // Draw frame overlay to cover entire canvas
+                    this.ctx.drawImage(frameImg, 0, 0, targetWidth, targetHeight);
+                    
+                    // Show canvas with frame inside preview container
+                    this.previewContainer.innerHTML = '';
+                    this.canvasContainer.style.display = 'block';
+                    this.previewContainer.appendChild(this.canvasContainer);
+                    this.videoPreview.style.display = 'none';
+                    this.setDownloadButtonsEnabled(true);
+                    
+                    // Debug: Log canvas dimensions and scaling info
+                    console.log('=== CAPTURE PHOTO DEBUG ===');
+                    console.log('Video size:', videoWidth, 'x', videoHeight);
+                    console.log('Video aspect ratio:', videoAspect.toFixed(3));
+                    console.log('Target aspect ratio:', targetAspect.toFixed(3));
+                    console.log('Canvas size:', this.canvasOutput.width, 'x', this.canvasOutput.height);
+                    console.log('Draw size:', drawWidth, 'x', drawHeight);
+                    console.log('Draw offset:', offsetX, offsetY);
+                    console.log('========================');
+                    
+                                            this.currentMode = 'photo';
+                        this.showStatus('Foto pernikahan berhasil diambil dengan bingkai khusus Hanum & Riduwan!', 'success');
+                };
+                frameImg.src = 'bingkai.png';
+            }
+
+            startVideoRecording() {
+                if (!this.stream) {
+                    this.showStatus('Kamera belum dimulai', 'error');
+                    return;
+                }
+
+                this.recordedChunks = [];
+                
+                // Use better codec that preserves audio and video quality
+                let options = {};
+                if (MediaRecorder.isTypeSupported('video/webm;codecs=vp9,opus')) {
+                    options.mimeType = 'video/webm;codecs=vp9,opus';
+                } else if (MediaRecorder.isTypeSupported('video/webm;codecs=h264,aac')) {
+                    options.mimeType = 'video/webm;codecs=h264,aac';
+                } else {
+                    options.mimeType = 'video/webm';
+                }
+                options.videoBitsPerSecond = 5000000; // 5 Mbps for good quality
+                options.audioBitsPerSecond = 128000; // 128 kbps for audio
+                
+                this.mediaRecorder = new MediaRecorder(this.stream, options);
+
+                this.mediaRecorder.ondataavailable = (event) => {
+                    if (event.data.size > 0) {
+                        this.recordedChunks.push(event.data);
+                    }
+                };
+
+                this.mediaRecorder.onstop = () => {
+                    const blob = new Blob(this.recordedChunks, { type: 'video/webm' });
+                    const url = URL.createObjectURL(blob);
+                    
+                    // Create video element for preview
+                    const videoElement = document.createElement('video');
+                    videoElement.src = url;
+                    videoElement.controls = true;
+                    videoElement.style.width = '270px';
+                    videoElement.style.height = '480px';
+                    videoElement.style.borderRadius = '10px';
+                    videoElement.style.objectFit = 'cover';
+                    videoElement.style.background = '#000';
+                    
+                    // Clear preview container and add video
+                    this.previewContainer.innerHTML = '';
+                    this.previewContainer.appendChild(videoElement);
+                    this.previewContainer.classList.add('has-content');
+                    
+                    this.videoPreview.style.display = 'none';
+                    this.canvasContainer.style.display = 'none';
+                    
+                    this.setDownloadButtonsEnabled(true);
+                    this.currentMode = 'video';
+                    this.recordedVideoBlob = blob;
+                    
+                    this.showStatus('Video pernikahan berhasil direkam!', 'success');
+                };
+
+                this.mediaRecorder.start();
+                this.isRecording = true;
+                this.startVideoBtn.disabled = true;
+                this.stopVideoBtn.disabled = false;
+                this.capturePhotoBtn.disabled = true;
+
+                this.showStatus('Perekaman video dimulai...', 'info');
+            }
+
+            stopVideoRecording() {
+                if (this.mediaRecorder && this.isRecording) {
+                    this.mediaRecorder.stop();
+                    this.isRecording = false;
+                    this.startVideoBtn.disabled = false;
+                    this.stopVideoBtn.disabled = true;
+                    this.capturePhotoBtn.disabled = false;
+                }
+            }
+
+            handleFileUpload(event) {
+                const file = event.target.files[0];
+                if (!file) return;
+
+                const isImage = file.type.startsWith('image/');
+                const isVideo = file.type.startsWith('video/');
+
+                if (!isImage && !isVideo) {
+                    this.showStatus('Format file tidak didukung', 'error');
+                    return;
+                }
+
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    if (isImage) {
+                        this.processImageFile(e.target.result);
+                    } else {
+                        this.processVideoFile(e.target.result);
+                    }
+                };
+                reader.readAsDataURL(file);
+            }
+
+            processImageFile(dataUrl) {
+                const img = new Image();
+                img.onload = () => {
+                    // Set canvas size to reels format (1080x1920 - portrait)
+                    const targetWidth = 1080;
+                    const targetHeight = 1920;
+                    
+                    // Force canvas dimensions
+                    this.canvasOutput.width = targetWidth;
+                    this.canvasOutput.height = targetHeight;
+                    this.canvasOutput.style.width = '270px';
+                    this.canvasOutput.style.height = '480px';
+
+                    // Calculate scaling to fit image content within reels format
+                    const imageWidth = img.width;
+                    const imageHeight = img.height;
+                    
+                    // Calculate aspect ratios - for portrait reels, we want to FILL the canvas
+                    const imageAspect = imageWidth / imageHeight;
+                    const targetAspect = targetWidth / targetHeight; // 1080/1920 = 0.5625
+                    
+                    let drawWidth, drawHeight, offsetX, offsetY;
+                    
+                    // Always FILL the canvas (crop if needed) - this ensures no black bars
+                    if (imageAspect > targetAspect) {
+                        // Image is wider than target, fit to height (crop sides)
+                        drawHeight = targetHeight;
+                        drawWidth = targetHeight * imageAspect;
+                        offsetX = (targetWidth - drawWidth) / 2; // Center horizontally
+                        offsetY = 0;
+                    } else {
+                        // Image is taller than target, fit to width (crop top/bottom)
+                        drawWidth = targetWidth;
+                        drawHeight = targetWidth / imageAspect;
+                        offsetX = 0;
+                        offsetY = (targetHeight - drawHeight) / 2; // Center vertically
+                    }
+
+                    // Fill canvas with black background first
+                    this.ctx.fillStyle = '#000000';
+                    this.ctx.fillRect(0, 0, targetWidth, targetHeight);
+
+                    // Draw image to canvas with proper scaling
+                    this.ctx.drawImage(img, offsetX, offsetY, drawWidth, drawHeight);
+
+                    // Load and draw frame overlay
+                    const frameImg = new Image();
+                    frameImg.onload = () => {
+                        // Draw frame overlay to cover entire canvas
+                        this.ctx.drawImage(frameImg, 0, 0, targetWidth, targetHeight);
+                        
+                        // Show canvas with frame inside preview container
+                        this.previewContainer.innerHTML = '';
+                        this.canvasContainer.style.display = 'block';
+                        this.previewContainer.appendChild(this.canvasContainer);
+                        this.previewContainer.classList.add('has-content');
+                        this.videoPreview.style.display = 'none';
+                        this.setDownloadButtonsEnabled(true);
+                        
+                        // Debug: Log canvas dimensions and scaling info
+                        console.log('=== UPLOAD IMAGE DEBUG ===');
+                        console.log('Image size:', imageWidth, 'x', imageHeight);
+                        console.log('Image aspect ratio:', imageAspect.toFixed(3));
+                        console.log('Target aspect ratio:', targetAspect.toFixed(3));
+                        console.log('Canvas size:', this.canvasOutput.width, 'x', this.canvasOutput.height);
+                        console.log('Draw size:', drawWidth, 'x', drawHeight);
+                        console.log('Draw offset:', offsetX, offsetY);
+                        console.log('========================');
+                        
+                        this.currentMode = 'photo';
+                        this.showStatus('Foto pernikahan berhasil diproses dengan bingkai khusus Hanum & Riduwan!', 'success');
+                    };
+                    frameImg.src = 'bingkai.png';
+                };
+                img.src = dataUrl;
+            }
+
+            processVideoFile(dataUrl) {
+                const videoElement = document.createElement('video');
+                videoElement.src = dataUrl;
+                videoElement.controls = true;
+                videoElement.style.width = '270px';
+                videoElement.style.height = '480px';
+                videoElement.style.borderRadius = '10px';
+                videoElement.style.objectFit = 'cover';
+                videoElement.style.background = '#000';
+                
+                this.previewContainer.innerHTML = '';
+                this.previewContainer.appendChild(videoElement);
+                this.previewContainer.classList.add('has-content');
+                
+                this.videoPreview.style.display = 'none';
+                this.canvasContainer.style.display = 'none';
+                this.setDownloadButtonsEnabled(true);
+                
+                this.currentMode = 'video';
+                this.showStatus('Video pernikahan berhasil diupload!', 'success');
+            }
+
+            async downloadResult() {
+                if (this.currentMode === 'photo') {
+                    // Download canvas as image
+                    this.canvasOutput.toBlob((blob) => {
+                        // Debug: Log blob info and canvas dimensions
+                        console.log('=== DOWNLOAD DEBUG ===');
+                        console.log('Download Blob size:', blob.size, 'bytes');
+                        console.log('Download Canvas internal size:', this.canvasOutput.width, 'x', this.canvasOutput.height);
+                        console.log('Download Canvas display size:', this.canvasOutput.style.width, 'x', this.canvasOutput.style.height);
+                        console.log('Canvas aspect ratio:', (this.canvasOutput.height / this.canvasOutput.width).toFixed(3), '(should be 1.778 for 9:16)');
+                        console.log('==================');
+                        
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = `foto-hanum-riduwan-${Date.now()}.png`;
+                        document.body.appendChild(a);
+                        a.click();
+                        document.body.removeChild(a);
+                        URL.revokeObjectURL(url);
+                    });
+                } else if (this.currentMode === 'video') {
+                    try {
+                        this.showStatus('Memproses video dengan bingkai...', 'info');
+                        this.setDownloadButtonsEnabled(false);
+                        this.downloadResultBtn.innerHTML = '<span class="loading"></span> Memproses...';
+                        this.downloadResultPreviewBtn.innerHTML = '<span class="loading"></span> Memproses...';
+                        
+                        // Get the video element from preview container
+                        const videoElement = this.previewContainer.querySelector('video');
+                        if (!videoElement) {
+                            throw new Error('Video tidak ditemukan');
+                        }
+
+                        // Show progress bar
+                        this.progressBar.style.display = 'block';
+                        
+                        // Use default webm format
+                        const selectedFormat = 'webm';
+                        
+                        // Process video with frame overlay using real-time method for better quality
+                        const processedVideoBlob = await this.videoProcessor.processVideoRealtime(
+                            videoElement,
+                            (progress) => {
+                                const percentage = Math.round(progress * 100);
+                                this.progressFill.style.width = `${percentage}%`;
+                                this.downloadResultBtn.innerHTML = `<span class="loading"></span> ${percentage}%`;
+                                this.downloadResultPreviewBtn.innerHTML = `<span class="loading"></span> ${percentage}%`;
+                            },
+                            selectedFormat
+                        );
+
+                        // Download processed video
+                        const url = URL.createObjectURL(processedVideoBlob);
+                        const a = document.createElement('a');
+                        a.href = url;
+                        // Always use .webm extension since MediaRecorder produces WebM files
+                        // regardless of the requested format
+                        a.download = `video-hanum-riduwan-${Date.now()}.webm`;
+                        document.body.appendChild(a);
+                        a.click();
+                        document.body.removeChild(a);
+                        URL.revokeObjectURL(url);
+
+                        this.showStatus('Video pernikahan dengan bingkai berhasil didownload dalam format WebM!', 'success');
+                    } catch (error) {
+                        this.showStatus('Gagal memproses video: ' + error.message, 'error');
+                    } finally {
+                        this.setDownloadButtonsEnabled(true);
+                        this.downloadResultBtn.innerHTML = 'Download Hasil';
+                        this.downloadResultPreviewBtn.innerHTML = '📥 Download Hasil';
+                        this.progressBar.style.display = 'none';
+                        this.progressFill.style.width = '0%';
+                    }
+                }
+            }
+
+            resetAll() {
+                this.stopCamera();
+                this.previewContainer.innerHTML = `
+                    <div class="placeholder">
+                        <div>💒</div>
+                        <p>Mulai kamera atau upload file untuk melihat preview</p>
+                        <p style="font-size: 0.85rem; color: #888; margin-top: 8px;">Bingkai khusus pernikahan Hanum & Riduwan</p>
+                    </div>
+                `;
+                this.previewContainer.classList.remove('has-content');
+                this.setDownloadButtonsEnabled(false);
+                this.fileInput.value = '';
+                this.currentMode = null;
+                this.showStatus('Semua data telah direset', 'info');
+            }
+        }
+
+        // Initialize app when page loads
+        document.addEventListener('DOMContentLoaded', () => {
+            new PhotoFrameApp();
+        });
+    </script>
+</body>
+</html>
