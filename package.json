@@ -1,7 +1,7 @@
 {
   "name": "bingkai-foto-app",
   "version": "1.0.0",
-  "description": "Aplikasi web untuk menambahkan bingkai pada foto dan video menggunakan HTML, CSS, dan JavaScript",
+  "description": "Enhanced aplikasi web untuk menambahkan bingkai pada foto dan video dengan processing berkualitas tinggi menggunakan FFmpeg.js dan optimized MediaRecorder",
   "main": "index.html",
   "scripts": {
     "start": "python3 -m http.server 8000",
@@ -14,6 +14,10 @@
     "web-camera",
     "canvas-api",
     "media-recorder",
+    "ffmpeg-js",
+    "video-processing",
+    "webassembly",
+    "high-quality-video",
     "html5",
     "css3",
     "javascript"
@@ -42,6 +46,7 @@
     "index.html",
     "styles.css",
     "video-processor.js",
+    "video-processor-enhanced.js",
     "bingkai.png",
     "README.md"
   ]

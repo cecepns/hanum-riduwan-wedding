@@ -1,6 +1,7 @@
 /**
- * Video Processor dengan Bingkai Overlay
- * Library untuk menambahkan bingkai pada video menggunakan Canvas API
+ * Enhanced Video Processor dengan Bingkai Overlay
+ * Library untuk menambahkan bingkai pada video menggunakan optimized processing
+ * Mendukung FFmpeg.js untuk performa tinggi dan MediaRecorder untuk kompatibilitas
  */
 
 class VideoFrameProcessor {
@@ -9,6 +10,62 @@ class VideoFrameProcessor {
         this.ctx = this.canvas.getContext('2d');
         this.frameImage = null;
         this.isProcessing = false;
+        this.ffmpegLoaded = false;
+        this.ffmpeg = null;
+        this.useFFmpeg = true; // Prefer FFmpeg for better quality
+        this.workerCanvas = document.createElement('canvas');
+        this.workerCtx = this.workerCanvas.getContext('2d');
+    }
+
+    /**
+     * Initialize FFmpeg.js untuk video processing yang optimal
+     * @returns {Promise} Promise yang resolve ketika FFmpeg ready
+     */
+    async initializeFFmpeg() {
+        if (this.ffmpegLoaded) return;
+        
+        try {
+            // Load FFmpeg dari CDN
+            if (typeof FFmpeg === 'undefined') {
+                await this.loadFFmpegScript();
+            }
+            
+            if (typeof FFmpeg !== 'undefined') {
+                this.ffmpeg = new FFmpeg();
+                this.ffmpeg.on('log', ({ message }) => {
+                    console.log('FFmpeg:', message);
+                });
+                await this.ffmpeg.load();
+                this.ffmpegLoaded = true;
+                console.log('FFmpeg.js loaded successfully');
+            } else {
+                console.warn('FFmpeg.js not available, falling back to MediaRecorder');
+                this.useFFmpeg = false;
+            }
+        } catch (error) {
+            console.warn('Failed to load FFmpeg.js, using MediaRecorder fallback:', error);
+            this.useFFmpeg = false;
+        }
+    }
+
+    /**
+     * Load FFmpeg.js script dynamically
+     * @returns {Promise} Promise yang resolve ketika script loaded
+     */
+    async loadFFmpegScript() {
+        return new Promise((resolve, reject) => {
+            const script = document.createElement('script');
+            script.src = 'https://unpkg.com/@ffmpeg/ffmpeg@0.12.10/dist/umd/ffmpeg.js';
+            script.onload = () => {
+                console.log('FFmpeg.js script loaded');
+                resolve();
+            };
+            script.onerror = () => {
+                console.warn('Failed to load FFmpeg.js script');
+                reject(new Error('FFmpeg script load failed'));
+            };
+            document.head.appendChild(script);
+        });
     }
 
     /**

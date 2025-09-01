@@ -84,7 +84,7 @@
         </div>
     </div>
 
-    <script src="video-processor.js"></script>
+    <script src="video-processor-enhanced.js"></script>
     <script>
         class PhotoFrameApp {
             constructor() {
@@ -93,7 +93,7 @@
                 this.recordedChunks = [];
                 this.isRecording = false;
                 this.currentMode = null; // 'photo', 'video', 'upload'
-                this.videoProcessor = new VideoFrameProcessor();
+                this.videoProcessor = new EnhancedVideoProcessor();
                 this.uploadedVideoFile = null; // Store original uploaded video file
                 this.recordedVideoBlob = null; // Store recorded video blob
                 
@@ -571,7 +571,7 @@
                             this.downloadResultBtn.innerHTML = '<span class="loading"></span> 5%';
                             this.downloadResultPreviewBtn.innerHTML = '<span class="loading"></span> 5%';
                             
-                            processedVideoBlob = await this.videoProcessor.processVideoSimple(
+                            processedVideoBlob = await this.videoProcessor.processVideo(
                                 videoElement,
                                 (progress) => {
                                     const percentage = Math.round(progress * 100);
@@ -579,7 +579,8 @@
                                     this.progressFill.style.width = `${percentage}%`;
                                     this.downloadResultBtn.innerHTML = `<span class="loading"></span> ${percentage}%`;
                                     this.downloadResultPreviewBtn.innerHTML = `<span class="loading"></span> ${percentage}%`;
-                                }
+                                },
+                                'mp4' // Specify format explicitly
                             );
                         } else if (this.uploadedVideoFile) {
                             // For uploaded videos, use the original file
@@ -597,7 +598,7 @@
                             this.downloadResultBtn.innerHTML = '<span class="loading"></span> 5%';
                             this.downloadResultPreviewBtn.innerHTML = '<span class="loading"></span> 5%';
                             
-                            processedVideoBlob = await this.videoProcessor.processVideoSimple(
+                            processedVideoBlob = await this.videoProcessor.processVideo(
                                 videoElement,
                                 (progress) => {
                                     const percentage = Math.round(progress * 100);
@@ -605,7 +606,8 @@
                                     this.progressFill.style.width = `${percentage}%`;
                                     this.downloadResultBtn.innerHTML = `<span class="loading"></span> ${percentage}%`;
                                     this.downloadResultPreviewBtn.innerHTML = `<span class="loading"></span> ${percentage}%`;
-                                }
+                                },
+                                'mp4' // Specify format explicitly
                             );
                         } else {
                             throw new Error('Video source tidak ditemukan');
@@ -616,17 +618,36 @@
                         this.downloadResultBtn.innerHTML = '<span class="loading"></span> 100%';
                         this.downloadResultPreviewBtn.innerHTML = '<span class="loading"></span> 100%';
                         
-                        // Download processed video
+                        // Download processed video with appropriate extension
                         const url = URL.createObjectURL(processedVideoBlob);
                         const a = document.createElement('a');
                         a.href = url;
-                        a.download = `video-hanum-riduwan-${Date.now()}.webm`;
+                        
+                        // Determine file extension based on blob type
+                        let extension = '.webm'; // Default fallback
+                        if (processedVideoBlob.type.includes('mp4')) {
+                            extension = '.mp4';
+                        } else if (processedVideoBlob.type.includes('webm')) {
+                            extension = '.webm';
+                        }
+                        
+                        a.download = `video-hanum-riduwan-${Date.now()}${extension}`;
                         document.body.appendChild(a);
                         a.click();
                         document.body.removeChild(a);
                         URL.revokeObjectURL(url);
 
-                        this.showStatus('Video pernikahan dengan bingkai berhasil didownload!', 'success');
+                        // Show metadata info for debugging
+                        try {
+                            const metadata = await EnhancedVideoUtils.getVideoMetadata(processedVideoBlob);
+                            console.log('Processed video metadata:', metadata);
+                        } catch (e) {
+                            console.log('Could not get metadata:', e);
+                        }
+
+                        // Show enhanced success message with processing info
+                        const processingMethod = this.videoProcessor.ffmpegLoaded ? 'FFmpeg (Kualitas Tinggi)' : 'MediaRecorder (Optimized)';
+                        this.showStatus(`Video berhasil didownload! Metode: ${processingMethod} | Ukuran: ${(processedVideoBlob.size / (1024*1024)).toFixed(1)}MB`, 'success');
                     } catch (error) {
                         this.showStatus('Gagal memproses video: ' + error.message, 'error');
                         console.error('Video processing error:', error);
