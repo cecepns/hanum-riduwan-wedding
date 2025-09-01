@@ -504,6 +504,219 @@ class VideoFrameProcessor {
     }
 
     /**
+     * Simple video processing method with better handling for longer videos
+     * Uses chunk-based processing to avoid timeouts
+     * @param {HTMLVideoElement} video - Video element
+     * @param {Function} onProgress - Callback untuk progress
+     * @returns {Promise<Blob>} Promise yang resolve dengan video blob
+     */
+    async processVideoSimple(video, onProgress = null) {
+        if (this.isProcessing) {
+            throw new Error('Video sedang diproses');
+        }
+
+        this.isProcessing = true;
+
+        try {
+            const targetWidth = 1080;
+            const targetHeight = 1920;
+            const duration = video.duration;
+            
+            // Setup canvas for processing
+            this.canvas.width = targetWidth;
+            this.canvas.height = targetHeight;
+
+            // Create hidden video element for processing
+            const hiddenVideo = document.createElement('video');
+            hiddenVideo.src = video.src;
+            hiddenVideo.muted = false;
+            hiddenVideo.volume = 1.0;
+            hiddenVideo.playbackRate = 1.0;
+            hiddenVideo.style.display = 'none';
+            hiddenVideo.crossOrigin = 'anonymous';
+            hiddenVideo.preload = 'metadata';
+            document.body.appendChild(hiddenVideo);
+
+            // Wait for video to load
+            await new Promise((resolve, reject) => {
+                hiddenVideo.onloadedmetadata = resolve;
+                hiddenVideo.onerror = (e) => {
+                    console.error('Video loading error:', e);
+                    reject(new Error('Gagal memuat video'));
+                };
+                hiddenVideo.load();
+            });
+
+            console.log('Video loaded - Duration:', duration, 'seconds');
+
+            // Create canvas stream with stable frame rate
+            const fps = 25; // Lower FPS for better stability
+            const canvasStream = this.canvas.captureStream(fps);
+            
+            // Enhanced audio handling
+            try {
+                const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                
+                // Resume context if suspended (required for autoplay policies)
+                if (audioContext.state === 'suspended') {
+                    await audioContext.resume();
+                }
+                
+                const source = audioContext.createMediaElementSource(hiddenVideo);
+                const destination = audioContext.createMediaStreamDestination();
+                
+                // Create gain node for audio control
+                const gainNode = audioContext.createGain();
+                gainNode.gain.value = 1.0;
+                
+                // Connect audio pipeline
+                source.connect(gainNode);
+                gainNode.connect(destination);
+                
+                // Add audio tracks to canvas stream
+                destination.stream.getAudioTracks().forEach(track => {
+                    canvasStream.addTrack(track);
+                    console.log('Audio track added:', track.label, 'enabled:', track.enabled);
+                });
+                
+                console.log('Audio context state:', audioContext.state);
+                console.log('Audio tracks in stream:', canvasStream.getAudioTracks().length);
+            } catch (audioError) {
+                console.warn('Audio setup failed, proceeding without audio:', audioError);
+            }
+
+            // Use the most compatible codec
+            let mimeType = 'video/webm';
+            if (MediaRecorder.isTypeSupported('video/webm;codecs=vp8,opus')) {
+                mimeType = 'video/webm;codecs=vp8,opus';
+            } else if (MediaRecorder.isTypeSupported('video/webm;codecs=h264,opus')) {
+                mimeType = 'video/webm;codecs=h264,opus';
+            }
+
+            // Create MediaRecorder with optimized settings for longer videos
+            const mediaRecorder = new MediaRecorder(canvasStream, {
+                mimeType: mimeType,
+                videoBitsPerSecond: 3000000, // Reduced bitrate for better performance
+                audioBitsPerSecond: 128000   // Standard audio quality
+            });
+
+            console.log('Using MediaRecorder with:', mimeType);
+
+            const chunks = [];
+            let recordingStartTime = Date.now();
+
+            return new Promise((resolve, reject) => {
+                mediaRecorder.ondataavailable = (event) => {
+                    if (event.data.size > 0) {
+                        chunks.push(event.data);
+                        console.log('Chunk received:', event.data.size, 'bytes', 'Total chunks:', chunks.length);
+                    }
+                };
+
+                mediaRecorder.onstop = () => {
+                    const processingTime = (Date.now() - recordingStartTime) / 1000;
+                    console.log('Recording stopped after', processingTime.toFixed(2), 'seconds');
+                    console.log('Total chunks collected:', chunks.length);
+                    
+                    document.body.removeChild(hiddenVideo);
+                    
+                    const blob = new Blob(chunks, { type: mimeType });
+                    console.log('Final blob size:', blob.size, 'bytes');
+                    console.log('Final blob type:', blob.type);
+                    
+                    this.isProcessing = false;
+                    resolve(blob);
+                };
+
+                mediaRecorder.onerror = (error) => {
+                    console.error('MediaRecorder error:', error);
+                    document.body.removeChild(hiddenVideo);
+                    this.isProcessing = false;
+                    reject(error);
+                };
+
+                // Enhanced frame processing with better timing control and progress reporting
+                let animationId = null;
+                let lastProgressUpdate = 0;
+                const progressInterval = 100; // Update progress every 100ms for more responsive UI
+                
+                const updateFrame = () => {
+                    if (!this.isProcessing || hiddenVideo.ended || hiddenVideo.currentTime >= duration) {
+                        console.log('Ending frame processing. Ended:', hiddenVideo.ended, 'CurrentTime:', hiddenVideo.currentTime, 'Duration:', duration);
+                        if (animationId) {
+                            cancelAnimationFrame(animationId);
+                        }
+                        
+                        // Final progress update
+                        if (onProgress) {
+                            onProgress(1); // 100% completion
+                        }
+                        
+                        // Add a small delay before stopping to ensure all frames are captured
+                        setTimeout(() => {
+                            mediaRecorder.stop();
+                        }, 100);
+                        return;
+                    }
+
+                    // Process current frame with overlay
+                    this.processFrame(hiddenVideo, targetWidth, targetHeight);
+                    
+                    // Update progress more frequently and ensure it's always updated
+                    const now = Date.now();
+                    if (onProgress && (now - lastProgressUpdate) >= progressInterval) {
+                        const progress = Math.min(hiddenVideo.currentTime / duration, 1);
+                        console.log('Progress update:', Math.round(progress * 100) + '% - Current time:', hiddenVideo.currentTime.toFixed(2), '/', duration.toFixed(2));
+                        onProgress(progress);
+                        lastProgressUpdate = now;
+                    }
+
+                    animationId = requestAnimationFrame(updateFrame);
+                };
+
+                // Start recording with longer chunks for stability
+                mediaRecorder.start(500); // 500ms chunks for better performance
+                console.log('Started recording with', mimeType);
+
+                // Start video playback and frame processing
+                hiddenVideo.currentTime = 0;
+                hiddenVideo.onended = () => {
+                    console.log('Video playback ended naturally');
+                    if (animationId) {
+                        cancelAnimationFrame(animationId);
+                    }
+                    setTimeout(() => {
+                        mediaRecorder.stop();
+                    }, 200); // Extra delay to ensure all frames are captured
+                };
+
+                hiddenVideo.play().then(() => {
+                    console.log('Video playback started, beginning frame processing...');
+                    console.log('Video duration:', duration, 'seconds');
+                    recordingStartTime = Date.now();
+                    
+                    // Initial progress update
+                    if (onProgress) {
+                        onProgress(0);
+                    }
+                    
+                    updateFrame();
+                }).catch((error) => {
+                    console.error('Video playback failed:', error);
+                    document.body.removeChild(hiddenVideo);
+                    this.isProcessing = false;
+                    reject(error);
+                });
+            });
+
+        } catch (error) {
+            this.isProcessing = false;
+            console.error('Video processing error:', error);
+            throw error;
+        }
+    }
+
+    /**
      * Stop processing video
      */
     stopProcessing() {

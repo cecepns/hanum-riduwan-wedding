@@ -94,6 +94,8 @@
                 this.isRecording = false;
                 this.currentMode = null; // 'photo', 'video', 'upload'
                 this.videoProcessor = new VideoFrameProcessor();
+                this.uploadedVideoFile = null; // Store original uploaded video file
+                this.recordedVideoBlob = null; // Store recorded video blob
                 
                 this.initializeElements();
                 this.bindEvents();
@@ -308,28 +310,35 @@
 
                 this.recordedChunks = [];
                 
-                // Use better codec that preserves audio and video quality
+                // Use stable codec optimized for longer recordings
                 let options = {};
-                if (MediaRecorder.isTypeSupported('video/webm;codecs=vp9,opus')) {
-                    options.mimeType = 'video/webm;codecs=vp9,opus';
-                } else if (MediaRecorder.isTypeSupported('video/webm;codecs=h264,aac')) {
-                    options.mimeType = 'video/webm;codecs=h264,aac';
+                if (MediaRecorder.isTypeSupported('video/webm;codecs=vp8,opus')) {
+                    options.mimeType = 'video/webm;codecs=vp8,opus';
+                } else if (MediaRecorder.isTypeSupported('video/webm;codecs=h264,opus')) {
+                    options.mimeType = 'video/webm;codecs=h264,opus';
                 } else {
                     options.mimeType = 'video/webm';
                 }
-                options.videoBitsPerSecond = 5000000; // 5 Mbps for good quality
+                // Reduced bitrates for better stability on longer recordings
+                options.videoBitsPerSecond = 2500000; // 2.5 Mbps for stability
                 options.audioBitsPerSecond = 128000; // 128 kbps for audio
                 
                 this.mediaRecorder = new MediaRecorder(this.stream, options);
+                
+                console.log('MediaRecorder initialized with:', options.mimeType);
 
                 this.mediaRecorder.ondataavailable = (event) => {
                     if (event.data.size > 0) {
                         this.recordedChunks.push(event.data);
+                        console.log('Recording chunk received:', event.data.size, 'bytes. Total chunks:', this.recordedChunks.length);
                     }
                 };
 
                 this.mediaRecorder.onstop = () => {
-                    const blob = new Blob(this.recordedChunks, { type: 'video/webm' });
+                    console.log('Recording stopped. Total chunks:', this.recordedChunks.length);
+                    const blob = new Blob(this.recordedChunks, { type: options.mimeType || 'video/webm' });
+                    console.log('Recorded blob size:', blob.size, 'bytes');
+                    
                     const url = URL.createObjectURL(blob);
                     
                     // Create video element for preview
@@ -341,6 +350,8 @@
                     videoElement.style.borderRadius = '10px';
                     videoElement.style.objectFit = 'cover';
                     videoElement.style.background = '#000';
+                    videoElement.muted = false;
+                    videoElement.volume = 1.0;
                     
                     // Clear preview container and add video
                     this.previewContainer.innerHTML = '';
@@ -357,7 +368,14 @@
                     this.showStatus('Video pernikahan berhasil direkam!', 'success');
                 };
 
-                this.mediaRecorder.start();
+                this.mediaRecorder.onerror = (event) => {
+                    console.error('MediaRecorder error:', event);
+                    this.showStatus('Error saat merekam: ' + event.error, 'error');
+                };
+
+                // Start recording with small chunks for better handling of long recordings
+                this.mediaRecorder.start(1000); // 1 second chunks for better stability
+                console.log('Recording started with 1s chunks');
                 this.isRecording = true;
                 this.startVideoBtn.disabled = true;
                 this.stopVideoBtn.disabled = false;
@@ -388,15 +406,17 @@
                     return;
                 }
 
-                const reader = new FileReader();
-                reader.onload = (e) => {
-                    if (isImage) {
+                if (isImage) {
+                    const reader = new FileReader();
+                    reader.onload = (e) => {
                         this.processImageFile(e.target.result);
-                    } else {
-                        this.processVideoFile(e.target.result);
-                    }
-                };
-                reader.readAsDataURL(file);
+                    };
+                    reader.readAsDataURL(file);
+                } else {
+                    // Store original video file for processing
+                    this.uploadedVideoFile = file;
+                    this.processVideoFile(file);
+                }
             }
 
             processImageFile(dataUrl) {
@@ -476,15 +496,17 @@
                 img.src = dataUrl;
             }
 
-            processVideoFile(dataUrl) {
+            processVideoFile(file) {
                 const videoElement = document.createElement('video');
-                videoElement.src = dataUrl;
+                videoElement.src = URL.createObjectURL(file);
                 videoElement.controls = true;
                 videoElement.style.width = '270px';
                 videoElement.style.height = '480px';
                 videoElement.style.borderRadius = '10px';
                 videoElement.style.objectFit = 'cover';
                 videoElement.style.background = '#000';
+                videoElement.muted = false; // Enable audio
+                videoElement.volume = 1.0;
                 
                 this.previewContainer.innerHTML = '';
                 this.previewContainer.appendChild(videoElement);
@@ -526,45 +548,88 @@
                         this.downloadResultBtn.innerHTML = '<span class="loading"></span> Memproses...';
                         this.downloadResultPreviewBtn.innerHTML = '<span class="loading"></span> Memproses...';
                         
-                        // Get the video element from preview container
-                        const videoElement = this.previewContainer.querySelector('video');
-                        if (!videoElement) {
-                            throw new Error('Video tidak ditemukan');
+                        // Show progress bar and initialize
+                        this.progressBar.style.display = 'block';
+                        this.progressFill.style.width = '0%';
+                        
+                        let processedVideoBlob;
+                        
+                        // Handle different video sources (recorded vs uploaded)
+                        if (this.recordedVideoBlob) {
+                            // For recorded videos, use the stored blob
+                            const videoElement = document.createElement('video');
+                            videoElement.src = URL.createObjectURL(this.recordedVideoBlob);
+                            videoElement.muted = false;
+                            videoElement.volume = 1.0;
+                            
+                            await new Promise((resolve) => {
+                                videoElement.onloadeddata = resolve;
+                            });
+                            
+                            // Show initial progress
+                            this.progressFill.style.width = '5%';
+                            this.downloadResultBtn.innerHTML = '<span class="loading"></span> 5%';
+                            this.downloadResultPreviewBtn.innerHTML = '<span class="loading"></span> 5%';
+                            
+                            processedVideoBlob = await this.videoProcessor.processVideoSimple(
+                                videoElement,
+                                (progress) => {
+                                    const percentage = Math.round(progress * 100);
+                                    console.log('UI Progress update (recorded):', percentage + '%');
+                                    this.progressFill.style.width = `${percentage}%`;
+                                    this.downloadResultBtn.innerHTML = `<span class="loading"></span> ${percentage}%`;
+                                    this.downloadResultPreviewBtn.innerHTML = `<span class="loading"></span> ${percentage}%`;
+                                }
+                            );
+                        } else if (this.uploadedVideoFile) {
+                            // For uploaded videos, use the original file
+                            const videoElement = document.createElement('video');
+                            videoElement.src = URL.createObjectURL(this.uploadedVideoFile);
+                            videoElement.muted = false;
+                            videoElement.volume = 1.0;
+                            
+                            await new Promise((resolve) => {
+                                videoElement.onloadeddata = resolve;
+                            });
+                            
+                            // Show initial progress
+                            this.progressFill.style.width = '5%';
+                            this.downloadResultBtn.innerHTML = '<span class="loading"></span> 5%';
+                            this.downloadResultPreviewBtn.innerHTML = '<span class="loading"></span> 5%';
+                            
+                            processedVideoBlob = await this.videoProcessor.processVideoSimple(
+                                videoElement,
+                                (progress) => {
+                                    const percentage = Math.round(progress * 100);
+                                    console.log('UI Progress update (uploaded):', percentage + '%');
+                                    this.progressFill.style.width = `${percentage}%`;
+                                    this.downloadResultBtn.innerHTML = `<span class="loading"></span> ${percentage}%`;
+                                    this.downloadResultPreviewBtn.innerHTML = `<span class="loading"></span> ${percentage}%`;
+                                }
+                            );
+                        } else {
+                            throw new Error('Video source tidak ditemukan');
                         }
 
-                        // Show progress bar
-                        this.progressBar.style.display = 'block';
+                        // Final progress update to 100%
+                        this.progressFill.style.width = '100%';
+                        this.downloadResultBtn.innerHTML = '<span class="loading"></span> 100%';
+                        this.downloadResultPreviewBtn.innerHTML = '<span class="loading"></span> 100%';
                         
-                        // Use default webm format
-                        const selectedFormat = 'webm';
-                        
-                        // Process video with frame overlay using real-time method for better quality
-                        const processedVideoBlob = await this.videoProcessor.processVideoRealtime(
-                            videoElement,
-                            (progress) => {
-                                const percentage = Math.round(progress * 100);
-                                this.progressFill.style.width = `${percentage}%`;
-                                this.downloadResultBtn.innerHTML = `<span class="loading"></span> ${percentage}%`;
-                                this.downloadResultPreviewBtn.innerHTML = `<span class="loading"></span> ${percentage}%`;
-                            },
-                            selectedFormat
-                        );
-
                         // Download processed video
                         const url = URL.createObjectURL(processedVideoBlob);
                         const a = document.createElement('a');
                         a.href = url;
-                        // Always use .webm extension since MediaRecorder produces WebM files
-                        // regardless of the requested format
                         a.download = `video-hanum-riduwan-${Date.now()}.webm`;
                         document.body.appendChild(a);
                         a.click();
                         document.body.removeChild(a);
                         URL.revokeObjectURL(url);
 
-                        this.showStatus('Video pernikahan dengan bingkai berhasil didownload dalam format WebM!', 'success');
+                        this.showStatus('Video pernikahan dengan bingkai berhasil didownload!', 'success');
                     } catch (error) {
                         this.showStatus('Gagal memproses video: ' + error.message, 'error');
+                        console.error('Video processing error:', error);
                     } finally {
                         this.setDownloadButtonsEnabled(true);
                         this.downloadResultBtn.innerHTML = 'Download Hasil';
@@ -588,6 +653,8 @@
                 this.setDownloadButtonsEnabled(false);
                 this.fileInput.value = '';
                 this.currentMode = null;
+                this.uploadedVideoFile = null;
+                this.recordedVideoBlob = null;
                 this.showStatus('Semua data telah direset', 'info');
             }
         }
