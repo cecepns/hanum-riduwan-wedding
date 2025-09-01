@@ -56,8 +56,8 @@
                     <button id="startCamera" class="btn">Mulai Kamera</button>
                     <button id="stopCamera" class="btn btn-secondary" disabled>Stop Kamera</button>
                     <button id="capturePhoto" class="btn btn-success" disabled>Ambil Foto</button>
-                    <button id="startVideo" class="btn btn-success" disabled>Mulai Video</button>
-                    <button id="stopVideo" class="btn btn-danger" disabled>Stop Video</button>
+                    <!-- <button id="startVideo" class="btn btn-success" disabled>Mulai Video</button> -->
+                    <!-- <button id="stopVideo" class="btn btn-danger" disabled>Stop Video</button> -->
                 </div>
 
                 <div class="control-group">
@@ -566,7 +566,7 @@
                         
                         // Show progress bar and initialize
                         this.progressBar.style.display = 'block';
-                        // this.progressFill.style.width = '0%';
+                        this.progressFill.style.width = '0%';
                         
                         let processedVideoBlob;
                         
@@ -596,7 +596,7 @@
                                 console.log('Video Processing Progress (recorded):', percentage + '%', statusText);
                                 this.updateProgress(percentage, statusText);
                             },
-                            'webm' // Use WebM format for better compatibility and quality
+                            'webm' // Use WebM format for better audio-video sync
                         );
                         } else if (this.uploadedVideoFile) {
                             // For uploaded videos, use the original file
@@ -623,7 +623,7 @@
                                 console.log('Video Processing Progress (uploaded):', percentage + '%', statusText);
                                 this.updateProgress(percentage, statusText);
                             },
-                            'webm' // Use WebM format for better compatibility and quality
+                            'webm' // Use WebM format for better audio-video sync
                         );
                         } else {
                             throw new Error('Video source tidak ditemukan');

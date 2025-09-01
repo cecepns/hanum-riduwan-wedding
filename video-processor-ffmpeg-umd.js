@@ -328,6 +328,7 @@
             } else {
                 // Just scale video without frame
                 args.push('-vf', `scale=${targetWidth}:${targetHeight}:force_original_aspect_ratio=increase,crop=${targetWidth}:${targetHeight}`);
+                args.push('-map', '0:a?'); // Ensure audio is mapped for video-only processing
             }
             
             // Optimized encoding settings for better performance
@@ -356,10 +357,17 @@
                 );
             }
             
-            // Additional optimizations for longer videos
+            // CRITICAL: Audio-Video Sync Fixes for Gallery Uploads
             args.push(
+                // Timestamp and sync fixes
                 '-avoid_negative_ts', 'make_zero', // Avoid timestamp issues
-                '-fflags', '+genpts', // Generate presentation timestamps
+                '-fflags', '+genpts+igndts', // Generate presentation timestamps and ignore DTS
+                '-async', '1', // Audio sync method - resample audio to match video
+                '-vsync', 'cfr', // Constant frame rate to prevent video drift
+                '-r', '30', // Force 30fps output for consistent timing
+                '-max_muxing_queue_size', '1024', // Increase muxing queue for better sync
+                
+                // Container format
                 '-f', format === 'mp4' ? 'mp4' : 'webm',
                 '-y', // Overwrite output file
                 outputVideo
@@ -460,7 +468,7 @@
                 // Create canvas stream
                 const canvasStream = canvas.captureStream(30);
                 
-                // SIMPLE AUDIO HANDLING: Use captureStream from video element
+                // IMPROVED AUDIO HANDLING: Ensure proper audio sync
                 let combinedStream = canvasStream;
                 try {
                     // Try to get audio stream from the processing video
@@ -469,13 +477,21 @@
                         const audioTracks = videoStream.getAudioTracks();
                         console.log('Simple fallback: Found', audioTracks.length, 'audio tracks');
                         
-                        // Add each audio track to the canvas stream
+                        // Add each audio track to the canvas stream with proper constraints
                         audioTracks.forEach((track, index) => {
+                            // Ensure audio track is enabled and properly configured
+                            track.enabled = true;
                             canvasStream.addTrack(track);
                             console.log(`Simple fallback: Added audio track ${index}:`, track.label, 'enabled:', track.enabled);
                         });
                         
                         combinedStream = canvasStream;
+                        
+                        // CRITICAL: Ensure video element audio is properly configured for sync
+                        processingVideo.muted = false; // Keep audio enabled for sync
+                        processingVideo.volume = 0; // Silent playback to avoid feedback
+                        processingVideo.preservesPitch = true; // Maintain audio pitch during playback
+                        processingVideo.playbackRate = 1.0; // Ensure normal playback speed
                     }
                 } catch (audioError) {
                     console.warn('Simple fallback: Audio capture failed, proceeding without audio:', audioError);
@@ -550,8 +566,15 @@
                     
                     console.log('Simple fallback: Starting synchronized playback and recording for', duration, 'seconds');
                     
-                    // SYNCHRONIZED processing - play video and capture frames in real-time
+                    // IMPROVED SYNCHRONIZED processing - play video and capture frames with proper timing
+                    let expectedFrameTime = 0;
+                    const frameDuration = 1000 / 30; // 30 FPS = 33.33ms per frame
+                    let processingStartTime = Date.now();
+                    
                     const processFrames = () => {
+                        const currentTime = Date.now();
+                        const elapsedTime = currentTime - processingStartTime;
+                        
                         // Check if video has ended
                         if (processingVideo.ended || processingVideo.currentTime >= duration) {
                             console.log('Simple fallback: Video complete at', processingVideo.currentTime.toFixed(2), '/', duration.toFixed(2), 'seconds, frames:', frameCount);
@@ -562,6 +585,14 @@
                                 recorder.stop();
                             }, 500);
                             return;
+                        }
+                        
+                        // CRITICAL: Sync video currentTime to expected frame time
+                        const expectedVideoTime = (elapsedTime / 1000);
+                        if (Math.abs(processingVideo.currentTime - expectedVideoTime) > 0.1) {
+                            // If video is significantly out of sync, seek to correct position
+                            processingVideo.currentTime = Math.min(expectedVideoTime, duration);
+                            console.log('Simple fallback: Sync correction - seeking to', expectedVideoTime.toFixed(2));
                         }
                         
                         // Clear canvas with black background
@@ -611,8 +642,10 @@
                         
                         frameCount++;
                         
-                        // Continue processing at 30fps
-                        requestAnimationFrame(processFrames);
+                        // IMPROVED: Use setTimeout for more consistent timing instead of requestAnimationFrame
+                        expectedFrameTime += frameDuration;
+                        const nextFrameDelay = Math.max(0, expectedFrameTime - (Date.now() - processingStartTime));
+                        setTimeout(processFrames, nextFrameDelay);
                     };
                     
                     // Start video playback and synchronized frame processing
@@ -620,12 +653,16 @@
                     processingVideo.play().then(() => {
                         console.log('Simple fallback: Video playback started, beginning synchronized frame processing...');
                         startTime = Date.now();
+                        processingStartTime = Date.now(); // Reset timing for sync
+                        expectedFrameTime = 0; // Reset frame timing
                         
                         // Initial progress
                         if (onProgress) onProgress(0);
                         
-                        // Start frame processing loop
-                        processFrames();
+                        // Start frame processing loop with slight delay to ensure video is playing
+                        setTimeout(() => {
+                            processFrames();
+                        }, 50);
                     }).catch((error) => {
                         console.error('Simple fallback: Video playback failed:', error);
                         reject(error);
