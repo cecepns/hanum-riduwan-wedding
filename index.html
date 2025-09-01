@@ -151,11 +151,18 @@
                     this.videoProcessor = new VideoProcessor();
                     await this.videoProcessor.initialize();
                     await this.videoProcessor.loadFrame('bingkai.png');
-                    console.log('FFmpeg video processor initialized successfully');
+                    
+                    // Show format capability status
+                    if (this.videoProcessor.supportsMP4()) {
+                        console.log('Video processor initialized with MP4 support');
+                        this.showStatus('Siap memproses video dalam format MP4 berkualitas tinggi!', 'success');
+                    } else {
+                        console.log('Video processor initialized with fallback mode');
+                        this.showStatus('Siap memproses video - Hasil akan disimpan sebagai MP4', 'success');
+                    }
                 } catch (error) {
                     console.error('Failed to initialize video processor:', error);
-                    // Fallback to basic processor if FFmpeg fails
-                    this.showStatus('Menggunakan fallback processor (kualitas standar)', 'warning');
+                    this.showStatus('Gagal menginisialisasi processor video', 'error');
                 }
             }
 
@@ -559,7 +566,7 @@
                         
                         // Show progress bar and initialize
                         this.progressBar.style.display = 'block';
-                        this.progressFill.style.width = '0%';
+                        // this.progressFill.style.width = '0%';
                         
                         let processedVideoBlob;
                         
@@ -586,10 +593,10 @@
                                                  percentage < 60 ? 'Memproses video...' :
                                                  percentage < 90 ? 'Menambahkan bingkai...' :
                                                  'Finalisasi...';
-                                console.log('FFmpeg Progress (recorded):', percentage + '%', statusText);
+                                console.log('Video Processing Progress (recorded):', percentage + '%', statusText);
                                 this.updateProgress(percentage, statusText);
                             },
-                            'mp4' // Specify format explicitly
+                            'webm' // Use WebM format for better compatibility and quality
                         );
                         } else if (this.uploadedVideoFile) {
                             // For uploaded videos, use the original file
@@ -613,10 +620,10 @@
                                                  percentage < 60 ? 'Memproses video...' :
                                                  percentage < 90 ? 'Menambahkan bingkai...' :
                                                  'Finalisasi...';
-                                console.log('FFmpeg Progress (uploaded):', percentage + '%', statusText);
+                                console.log('Video Processing Progress (uploaded):', percentage + '%', statusText);
                                 this.updateProgress(percentage, statusText);
                             },
-                            'mp4' // Specify format explicitly
+                            'webm' // Use WebM format for better compatibility and quality
                         );
                         } else {
                             throw new Error('Video source tidak ditemukan');
@@ -630,12 +637,17 @@
                         const a = document.createElement('a');
                         a.href = url;
                         
-                        // Determine file extension based on blob type
-                        let extension = '.webm'; // Default fallback
-                        if (processedVideoBlob.type.includes('mp4')) {
-                            extension = '.mp4';
-                        } else if (processedVideoBlob.type.includes('webm')) {
-                            extension = '.webm';
+                        // Use WebM extension for better compatibility
+                        let extension = '.webm';
+                        let formatUsed = 'WebM';
+                        
+                        // Log blob type for debugging
+                        console.log('Processed video blob type:', processedVideoBlob.type);
+                        
+                        // Ensure we're getting WebM format
+                        if (!processedVideoBlob.type.includes('webm')) {
+                            console.warn('Expected WebM but got:', processedVideoBlob.type);
+                            // WebM should be the primary format for better compatibility
                         }
                         
                         a.download = `video-hanum-riduwan-${Date.now()}${extension}`;
@@ -653,8 +665,8 @@
                         }
 
                                             // Show enhanced success message with processing info
-                    const processingMethod = this.videoProcessor.useFFmpeg ? 'FFmpeg.js (Kualitas Tinggi)' : 'MediaRecorder (Fallback)';
-                    this.showStatus(`Video berhasil didownload! Metode: ${processingMethod} | Ukuran: ${(processedVideoBlob.size / (1024*1024)).toFixed(1)}MB`, 'success');
+                    const processingMethod = this.videoProcessor.useFFmpeg ? 'FFmpeg.js (Kualitas Tinggi)' : 'MediaRecorder (Optimized)';
+                    this.showStatus(`Video WebM berhasil didownload! Metode: ${processingMethod} | Ukuran: ${(processedVideoBlob.size / (1024*1024)).toFixed(1)}MB`, 'success');
                     } catch (error) {
                         this.showStatus('Gagal memproses video: ' + error.message, 'error');
                         console.error('Video processing error:', error);

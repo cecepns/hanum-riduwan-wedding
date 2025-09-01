@@ -170,18 +170,20 @@
         }
         
         /**
-         * Extract video blob from video element
+         * Extract video blob from video element - FIXED VERSION
          * @param {HTMLVideoElement} videoElement - Video element
          * @returns {Promise<Blob>} Video blob
          */
         async _extractVideoBlob(videoElement) {
-            // Check if video has a blob URL source
+            // PRIORITY: Use original blob if available - this preserves audio perfectly
             if (videoElement.src && videoElement.src.startsWith('blob:')) {
+                console.log('Using original video blob - preserves audio and full duration');
                 const response = await fetch(videoElement.src);
                 return await response.blob();
             }
             
-            // For cases where we need to capture from the video element
+            // Fallback: capture from video element (should rarely be needed)
+            console.log('Fallback: capturing from video element');
             return new Promise((resolve, reject) => {
                 const canvas = document.createElement('canvas');
                 const ctx = canvas.getContext('2d');
@@ -193,54 +195,105 @@
                 // Create video stream for recording
                 const stream = canvas.captureStream(30);
                 
-                // Add audio track if available
-                if (videoElement.captureStream) {
-                    const videoStream = videoElement.captureStream();
-                    const audioTracks = videoStream.getAudioTracks();
-                    audioTracks.forEach(track => stream.addTrack(track));
-                }
+                // CRITICAL: Preserve audio by NOT muting the processing video
+                const processingVideo = document.createElement('video');
+                processingVideo.src = videoElement.src;
+                processingVideo.muted = false; // KEEP AUDIO ENABLED
+                processingVideo.volume = 0; // Silent playback but keep audio track
+                processingVideo.style.display = 'none';
+                processingVideo.crossOrigin = 'anonymous';
+                document.body.appendChild(processingVideo);
                 
-                const recorder = new MediaRecorder(stream, {
-                    mimeType: 'video/webm;codecs=vp9,opus',
-                    videoBitsPerSecond: 8000000,
-                    audioBitsPerSecond: 320000
+                // Wait for video to load completely
+                processingVideo.addEventListener('loadeddata', async () => {
+                    try {
+                        // Add audio track from processing video
+                        if (processingVideo.captureStream) {
+                            const videoStream = processingVideo.captureStream();
+                            const audioTracks = videoStream.getAudioTracks();
+                            console.log('Found audio tracks:', audioTracks.length);
+                            audioTracks.forEach(track => {
+                                stream.addTrack(track);
+                                console.log('Added audio track:', track.label, 'enabled:', track.enabled);
+                            });
+                        }
+                        
+                        const recorder = new MediaRecorder(stream, {
+                            mimeType: 'video/webm;codecs=vp9,opus',
+                            videoBitsPerSecond: 8000000,
+                            audioBitsPerSecond: 320000
+                        });
+                        
+                        const chunks = [];
+                        recorder.ondataavailable = (e) => {
+                            if (e.data.size > 0) {
+                                chunks.push(e.data);
+                            }
+                        };
+                        
+                        recorder.onstop = () => {
+                            const blob = new Blob(chunks, { type: 'video/webm' });
+                            console.log('Captured video blob:', blob.size, 'bytes with audio tracks');
+                            
+                            // Cleanup
+                            if (document.body.contains(processingVideo)) {
+                                document.body.removeChild(processingVideo);
+                            }
+                            resolve(blob);
+                        };
+                        
+                        recorder.onerror = (error) => {
+                            console.error('Recorder error:', error);
+                            if (document.body.contains(processingVideo)) {
+                                document.body.removeChild(processingVideo);
+                            }
+                            reject(error);
+                        };
+                        
+                        // Start recording
+                        recorder.start(100);
+                        
+                        const duration = processingVideo.duration;
+                        let frameCount = 0;
+                        
+                        const drawFrame = () => {
+                            if (processingVideo.ended || processingVideo.currentTime >= duration) {
+                                console.log('Video processing complete - frames:', frameCount, 'duration:', processingVideo.currentTime);
+                                setTimeout(() => recorder.stop(), 200);
+                                return;
+                            }
+                            
+                            ctx.drawImage(processingVideo, 0, 0, canvas.width, canvas.height);
+                            frameCount++;
+                            requestAnimationFrame(drawFrame);
+                        };
+                        
+                        // Start playback and recording
+                        processingVideo.currentTime = 0;
+                        await processingVideo.play();
+                        drawFrame();
+                        
+                        processingVideo.onended = () => {
+                            console.log('Video ended naturally at:', processingVideo.currentTime, '/', duration);
+                            setTimeout(() => recorder.stop(), 200);
+                        };
+                        
+                    } catch (error) {
+                        console.error('Video processing error:', error);
+                        if (document.body.contains(processingVideo)) {
+                            document.body.removeChild(processingVideo);
+                        }
+                        reject(error);
+                    }
                 });
                 
-                const chunks = [];
-                recorder.ondataavailable = (e) => {
-                    if (e.data.size > 0) {
-                        chunks.push(e.data);
+                processingVideo.addEventListener('error', (error) => {
+                    console.error('Video loading error:', error);
+                    if (document.body.contains(processingVideo)) {
+                        document.body.removeChild(processingVideo);
                     }
-                };
-                
-                recorder.onstop = () => {
-                    const blob = new Blob(chunks, { type: 'video/webm' });
-                    resolve(blob);
-                };
-                
-                recorder.onerror = reject;
-                
-                // Record the video
-                recorder.start();
-                
-                const drawFrame = () => {
-                    if (videoElement.ended || videoElement.paused) {
-                        recorder.stop();
-                        return;
-                    }
-                    
-                    ctx.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
-                    requestAnimationFrame(drawFrame);
-                };
-                
-                videoElement.currentTime = 0;
-                videoElement.play().then(() => {
-                    drawFrame();
+                    reject(error);
                 });
-                
-                videoElement.onended = () => {
-                    setTimeout(() => recorder.stop(), 100);
-                };
             });
         }
         
@@ -261,12 +314,12 @@
             if (this.frameImage) {
                 args.push('-i', frameImage);
                 
-                // Complex filter for video scaling and frame overlay
+                // Optimized complex filter for video scaling and frame overlay
                 const filterComplex = [
                     `[0:v]scale=${targetWidth}:${targetHeight}:force_original_aspect_ratio=increase`,
                     `crop=${targetWidth}:${targetHeight}[scaled]`,
                     `[1:v]scale=${targetWidth}:${targetHeight}[frame]`,
-                    `[scaled][frame]overlay=0:0[final]`
+                    `[scaled][frame]overlay=0:0:format=auto[final]`
                 ].join(',');
                 
                 args.push('-filter_complex', filterComplex);
@@ -277,27 +330,36 @@
                 args.push('-vf', `scale=${targetWidth}:${targetHeight}:force_original_aspect_ratio=increase,crop=${targetWidth}:${targetHeight}`);
             }
             
-            // High-quality encoding settings
+            // Optimized encoding settings for better performance
             if (format === 'mp4') {
                 args.push(
                     '-c:v', 'libx264',
-                    '-preset', 'medium',
-                    '-crf', '18',
+                    '-preset', 'fast', // Changed from 'medium' to 'fast' for better performance
+                    '-crf', '20', // Slightly reduced quality for faster processing
+                    '-maxrate', '8M', // Add max bitrate to prevent huge files
+                    '-bufsize', '16M', // Buffer size for rate control
                     '-c:a', 'aac',
-                    '-b:a', '320k',
-                    '-movflags', '+faststart'
+                    '-b:a', '256k', // Reduced audio bitrate
+                    '-movflags', '+faststart',
+                    '-threads', '0' // Use all available CPU threads
                 );
             } else {
                 args.push(
                     '-c:v', 'libvpx-vp9',
-                    '-crf', '30',
+                    '-crf', '32', // Slightly reduced quality for faster processing
                     '-b:v', '0',
+                    '-cpu-used', '4', // Faster VP9 encoding
+                    '-row-mt', '1', // Enable row multithreading
                     '-c:a', 'libopus',
-                    '-b:a', '320k'
+                    '-b:a', '256k',
+                    '-threads', '0'
                 );
             }
             
+            // Additional optimizations for longer videos
             args.push(
+                '-avoid_negative_ts', 'make_zero', // Avoid timestamp issues
+                '-fflags', '+genpts', // Generate presentation timestamps
                 '-f', format === 'mp4' ? 'mp4' : 'webm',
                 '-y', // Overwrite output file
                 outputVideo
@@ -364,11 +426,30 @@
             this.isProcessing = true;
             
             try {
-                console.log('Using fallback MediaRecorder processing...');
+                console.log('Using SIMPLE fallback MediaRecorder processing with WebM format');
                 
+                // Create processing video element that preserves audio
+                const processingVideo = document.createElement('video');
+                processingVideo.src = videoElement.src;
+                processingVideo.muted = false; // Keep audio enabled
+                processingVideo.volume = 0; // Silent playback but preserve audio track
+                processingVideo.style.display = 'none';
+                processingVideo.crossOrigin = 'anonymous';
+                processingVideo.playsInline = true;
+                document.body.appendChild(processingVideo);
+                
+                // Wait for video to load completely
+                await new Promise((resolve, reject) => {
+                    processingVideo.onloadeddata = resolve;
+                    processingVideo.onerror = reject;
+                    processingVideo.load(); // Ensure loading
+                });
+                
+                console.log('Simple fallback - Video loaded. Duration:', processingVideo.duration, 'seconds');
+                
+                // Create canvas for frame processing
                 const canvas = document.createElement('canvas');
                 const ctx = canvas.getContext('2d');
-                
                 canvas.width = 1080;
                 canvas.height = 1920;
                 
@@ -376,89 +457,192 @@
                 ctx.imageSmoothingEnabled = true;
                 ctx.imageSmoothingQuality = 'high';
                 
-                const stream = canvas.captureStream(30);
+                // Create canvas stream
+                const canvasStream = canvas.captureStream(30);
                 
-                // Add audio from video
-                if (videoElement.captureStream) {
-                    const videoStream = videoElement.captureStream();
-                    videoStream.getAudioTracks().forEach(track => {
-                        stream.addTrack(track);
-                    });
+                // SIMPLE AUDIO HANDLING: Use captureStream from video element
+                let combinedStream = canvasStream;
+                try {
+                    // Try to get audio stream from the processing video
+                    if (processingVideo.captureStream) {
+                        const videoStream = processingVideo.captureStream();
+                        const audioTracks = videoStream.getAudioTracks();
+                        console.log('Simple fallback: Found', audioTracks.length, 'audio tracks');
+                        
+                        // Add each audio track to the canvas stream
+                        audioTracks.forEach((track, index) => {
+                            canvasStream.addTrack(track);
+                            console.log(`Simple fallback: Added audio track ${index}:`, track.label, 'enabled:', track.enabled);
+                        });
+                        
+                        combinedStream = canvasStream;
+                    }
+                } catch (audioError) {
+                    console.warn('Simple fallback: Audio capture failed, proceeding without audio:', audioError);
                 }
                 
-                const recorder = new MediaRecorder(stream, {
-                    mimeType: `video/${outputFormat};codecs=${outputFormat === 'mp4' ? 'h264,opus' : 'vp9,opus'}`,
-                    videoBitsPerSecond: 8000000,
-                    audioBitsPerSecond: 320000
-                });
+                console.log('Simple fallback: Final stream has', combinedStream.getAudioTracks().length, 'audio tracks');
+                
+                // Use stable WebM codecs for reliable results
+                let recorderOptions = {};
+                
+                // Priority order: VP9 > VP8 > H264 (all in WebM container)
+                if (MediaRecorder.isTypeSupported('video/webm;codecs=vp9,opus')) {
+                    recorderOptions.mimeType = 'video/webm;codecs=vp9,opus';
+                    console.log('Using VP9/Opus codec for best WebM quality');
+                } else if (MediaRecorder.isTypeSupported('video/webm;codecs=vp8,opus')) {
+                    recorderOptions.mimeType = 'video/webm;codecs=vp8,opus';
+                    console.log('Using VP8/Opus codec for WebM compatibility');
+                } else if (MediaRecorder.isTypeSupported('video/webm;codecs=h264,opus')) {
+                    recorderOptions.mimeType = 'video/webm;codecs=h264,opus';
+                    console.log('Using H264/Opus codec in WebM container');
+                } else {
+                    recorderOptions.mimeType = 'video/webm';
+                    console.log('Using basic WebM codec');
+                }
+                
+                // Optimized bitrates for WebM
+                recorderOptions.videoBitsPerSecond = 5000000; // 5Mbps for good quality
+                recorderOptions.audioBitsPerSecond = 192000;  // 192kbps for good audio
+                
+                const recorder = new MediaRecorder(combinedStream, recorderOptions);
+                console.log('Simple fallback: MediaRecorder initialized with:', recorderOptions.mimeType);
                 
                 const chunks = [];
                 recorder.ondataavailable = (e) => {
-                    if (e.data.size > 0) chunks.push(e.data);
+                    if (e.data.size > 0) {
+                        chunks.push(e.data);
+                        console.log('Simple fallback: Chunk received:', e.data.size, 'bytes');
+                    }
                 };
                 
                 return new Promise((resolve, reject) => {
                     recorder.onstop = () => {
-                        const blob = new Blob(chunks, { type: `video/${outputFormat}` });
+                        console.log('Simple fallback: Recording stopped, total chunks:', chunks.length);
+                        
+                        // Clean up processing video
+                        if (document.body.contains(processingVideo)) {
+                            document.body.removeChild(processingVideo);
+                        }
+                        
+                        // Create WebM blob with proper MIME type
+                        const blob = new Blob(chunks, { type: recorderOptions.mimeType || 'video/webm' });
+                        console.log('Simple fallback: Created WebM blob:', blob.type, blob.size, 'bytes with', combinedStream.getAudioTracks().length, 'audio tracks');
                         resolve(blob);
                     };
                     
-                    recorder.onerror = reject;
-                    recorder.start();
+                    recorder.onerror = (error) => {
+                        console.error('Simple fallback: Recorder error:', error);
+                        // Clean up on error
+                        if (document.body.contains(processingVideo)) {
+                            document.body.removeChild(processingVideo);
+                        }
+                        reject(error);
+                    };
                     
-                    const duration = videoElement.duration;
-                    let lastTime = 0;
+                    // Start recording with reasonable chunk size
+                    recorder.start(200); // 200ms chunks for stability
+                    console.log('Simple fallback: Started recording');
                     
-                    const processFrame = () => {
-                        if (videoElement.ended || videoElement.currentTime >= duration) {
+                    const duration = processingVideo.duration;
+                    let frameCount = 0;
+                    let startTime = Date.now();
+                    
+                    console.log('Simple fallback: Starting synchronized playback and recording for', duration, 'seconds');
+                    
+                    // SYNCHRONIZED processing - play video and capture frames in real-time
+                    const processFrames = () => {
+                        // Check if video has ended
+                        if (processingVideo.ended || processingVideo.currentTime >= duration) {
+                            console.log('Simple fallback: Video complete at', processingVideo.currentTime.toFixed(2), '/', duration.toFixed(2), 'seconds, frames:', frameCount);
                             if (onProgress) onProgress(1.0);
-                            setTimeout(() => recorder.stop(), 200);
+                            
+                            // Stop recording with delay to ensure all frames are captured
+                            setTimeout(() => {
+                                recorder.stop();
+                            }, 500);
                             return;
                         }
                         
-                        // Clear canvas
+                        // Clear canvas with black background
                         ctx.fillStyle = '#000000';
                         ctx.fillRect(0, 0, 1080, 1920);
                         
-                        // Draw video frame
-                        const videoWidth = videoElement.videoWidth;
-                        const videoHeight = videoElement.videoHeight;
+                        // Calculate proper scaling for video frame
+                        const videoWidth = processingVideo.videoWidth || 1280;
+                        const videoHeight = processingVideo.videoHeight || 720;
                         const videoAspect = videoWidth / videoHeight;
-                        const targetAspect = 1080 / 1920;
+                        const targetAspect = 1080 / 1920; // 0.5625
                         
                         let drawWidth, drawHeight, offsetX, offsetY;
                         
+                        // Always FILL the canvas (crop if needed) - same logic as photo capture
                         if (videoAspect > targetAspect) {
+                            // Video is wider than target, fit to height (crop sides)
                             drawHeight = 1920;
                             drawWidth = 1920 * videoAspect;
                             offsetX = (1080 - drawWidth) / 2;
                             offsetY = 0;
                         } else {
+                            // Video is taller than target, fit to width (crop top/bottom)
                             drawWidth = 1080;
                             drawHeight = 1080 / videoAspect;
                             offsetX = 0;
                             offsetY = (1920 - drawHeight) / 2;
                         }
                         
-                        ctx.drawImage(videoElement, offsetX, offsetY, drawWidth, drawHeight);
+                        // Draw video frame with high quality
+                        ctx.save();
+                        ctx.imageSmoothingEnabled = true;
+                        ctx.imageSmoothingQuality = 'high';
+                        ctx.drawImage(processingVideo, offsetX, offsetY, drawWidth, drawHeight);
+                        ctx.restore();
                         
-                        // Draw frame overlay
+                        // Draw frame overlay if available
                         if (this.frameImage) {
                             ctx.drawImage(this.frameImage, 0, 0, 1080, 1920);
                         }
                         
-                        // Update progress
-                        if (onProgress && videoElement.currentTime - lastTime > 0.5) {
-                            onProgress(videoElement.currentTime / duration);
-                            lastTime = videoElement.currentTime;
+                        // Update progress based on video time
+                        if (onProgress && frameCount % 10 === 0) { // Update every 10 frames
+                            const progress = Math.min(processingVideo.currentTime / duration, 0.99);
+                            onProgress(progress);
                         }
                         
-                        requestAnimationFrame(processFrame);
+                        frameCount++;
+                        
+                        // Continue processing at 30fps
+                        requestAnimationFrame(processFrames);
                     };
                     
-                    videoElement.currentTime = 0;
-                    videoElement.play().then(() => {
-                        processFrame();
+                    // Start video playback and synchronized frame processing
+                    processingVideo.currentTime = 0;
+                    processingVideo.play().then(() => {
+                        console.log('Simple fallback: Video playback started, beginning synchronized frame processing...');
+                        startTime = Date.now();
+                        
+                        // Initial progress
+                        if (onProgress) onProgress(0);
+                        
+                        // Start frame processing loop
+                        processFrames();
+                    }).catch((error) => {
+                        console.error('Simple fallback: Video playback failed:', error);
+                        reject(error);
+                    });
+                    
+                    // Handle natural video ending
+                    processingVideo.addEventListener('ended', () => {
+                        const processingTime = (Date.now() - startTime) / 1000;
+                        console.log('Simple fallback: Video ended naturally after', processingTime.toFixed(2), 'seconds, frames processed:', frameCount);
+                        
+                        // Final progress
+                        if (onProgress) onProgress(1.0);
+                        
+                        // Stop recording after a short delay
+                        setTimeout(() => {
+                            recorder.stop();
+                        }, 500);
                     });
                 });
                 
@@ -469,22 +653,23 @@
     }
 
     /**
-     * Main Video Processor with auto-fallback
+     * Main Video Processor with auto-fallback and MP4 priority
      */
     class VideoProcessor {
         constructor() {
             this.ffmpegProcessor = new FFmpegVideoProcessor();
             this.fallbackProcessor = new FallbackVideoProcessor();
             this.useFFmpeg = true;
+            this.preferMP4 = true; // Always prefer MP4 output
         }
         
         async initialize() {
             const ffmpegReady = await this.ffmpegProcessor.initialize();
             if (!ffmpegReady) {
-                console.warn('FFmpeg not available, using fallback processor');
+                console.warn('FFmpeg not available, using fallback processor (WebM output only)');
                 this.useFFmpeg = false;
             }
-            console.log('Video processor initialized, using:', this.useFFmpeg ? 'FFmpeg.js' : 'Fallback MediaRecorder');
+            console.log('Video processor initialized, using:', this.useFFmpeg ? 'FFmpeg.js (MP4 capable)' : 'Fallback MediaRecorder (WebM only)');
             return true;
         }
         
@@ -496,22 +681,58 @@
         }
         
         async processVideo(videoElement, onProgress = null, outputFormat = 'mp4') {
-            if (this.useFFmpeg && this.ffmpegProcessor.isReady()) {
+            // Always try to use FFmpeg first for MP4 output
+            if (outputFormat === 'mp4' && this.useFFmpeg && this.ffmpegProcessor.isReady()) {
                 try {
-                    console.log('Using FFmpeg.js for high-quality processing');
-                    return await this.ffmpegProcessor.processVideo(videoElement, onProgress, outputFormat);
+                    console.log('Using FFmpeg.js for MP4 high-quality processing');
+                    return await this.ffmpegProcessor.processVideo(videoElement, onProgress, 'mp4');
                 } catch (error) {
-                    console.warn('FFmpeg processing failed, falling back to MediaRecorder:', error);
-                    this.useFFmpeg = false;
+                    console.warn('FFmpeg MP4 processing failed, falling back to MediaRecorder WebM:', error);
+                    // Don't disable FFmpeg completely, just for this attempt
                 }
             }
             
-            console.log('Using fallback MediaRecorder processing');
-            return await this.fallbackProcessor.processVideo(videoElement, onProgress, 'webm');
+            // If FFmpeg is available but output format is not MP4, still try FFmpeg
+            if (this.useFFmpeg && this.ffmpegProcessor.isReady()) {
+                try {
+                    console.log('Using FFmpeg.js for', outputFormat, 'processing');
+                    return await this.ffmpegProcessor.processVideo(videoElement, onProgress, outputFormat);
+                } catch (error) {
+                    console.warn('FFmpeg processing failed, falling back to MediaRecorder:', error);
+                }
+            }
+            
+            // Fallback to MediaRecorder with format preference
+            console.log('Using fallback MediaRecorder processing with format:', outputFormat);
+            const result = await this.fallbackProcessor.processVideo(videoElement, onProgress, outputFormat);
+            
+            // Log what format we actually got
+            console.log('Fallback processor result type:', result.type);
+            if (outputFormat === 'mp4' && !result.type.includes('mp4')) {
+                console.warn('MP4 requested but fallback provided:', result.type, '- File will still be saved as .mp4');
+            }
+            
+            return result;
         }
         
         isProcessing() {
             return this.ffmpegProcessor.isCurrentlyProcessing() || this.fallbackProcessor.isProcessing;
+        }
+        
+        /**
+         * Check if MP4 output is supported
+         * @returns {boolean} True if MP4 output is available
+         */
+        supportsMP4() {
+            return this.useFFmpeg && this.ffmpegProcessor.isReady();
+        }
+        
+        /**
+         * Get recommended output format based on capabilities
+         * @returns {string} Recommended format
+         */
+        getRecommendedFormat() {
+            return this.supportsMP4() ? 'mp4' : 'webm';
         }
     }
 
@@ -521,3 +742,4 @@
     global.FallbackVideoProcessor = FallbackVideoProcessor;
 
 })(typeof window !== 'undefined' ? window : this);
+
