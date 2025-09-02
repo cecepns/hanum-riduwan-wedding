@@ -54,15 +54,22 @@ function App() {
               Buat kenangan indah dengan frame pernikahan <br/> Hanum & Riduwan
             </p>
             
-            <div className="flex flex-col sm:flex-row gap-4 mb-8">
+            <div className="grid gap-5">
               <FileUpload onFileSelect={handleFileSelect} />
               
               <button 
-                className="btn-secondary min-w-[140px]"
+                className="btn-secondary"
                 onClick={() => setShowCamera(true)}
               >
                 <Camera size={24} />
                 Ambil Foto
+              </button>
+              <button 
+                className="btn-secondary"
+                onClick={() => window.open('https://drive.google.com/drive/folders/1U7lg3U5U_oxqkrN48tZ0IudGTQQz6xpO', '_blank')}
+              >
+                <Upload size={24} />
+                Upload hasil ke drive
               </button>
             </div>
 
