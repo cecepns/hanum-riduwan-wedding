@@ -1,0 +1,55 @@
+{
+  "name": "bingkai-foto-app",
+  "version": "1.0.0",
+  "description": "Enhanced aplikasi web untuk menambahkan bingkai pada foto dan video dengan processing berkualitas tinggi menggunakan FFmpeg.js. Dilengkapi progress bar yang berfungsi dan video processing tanpa lag.",
+  "main": "index.html",
+  "scripts": {
+    "start": "python3 -m http.server 8000",
+    "dev": "python3 -m http.server 8000",
+    "serve": "python3 -m http.server 8000"
+  },
+  "keywords": [
+    "photo-frame",
+    "video-frame",
+    "web-camera",
+    "canvas-api",
+    "media-recorder",
+    "ffmpeg-js",
+    "video-processing",
+    "webassembly",
+    "high-quality-video",
+    "html5",
+    "css3",
+    "javascript"
+  ],
+  "author": "Your Name",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yourusername/bingkai-foto-app.git"
+  },
+  "bugs": {
+    "url": "https://github.com/yourusername/bingkai-foto-app/issues"
+  },
+  "homepage": "https://github.com/yourusername/bingkai-foto-app#readme",
+  "engines": {
+    "node": ">=14.0.0"
+  },
+  "browserslist": [
+    "> 1%",
+    "last 2 versions",
+    "not dead"
+  ],
+  "dependencies": {
+    "@ffmpeg/ffmpeg": "^0.12.15",
+    "@ffmpeg/util": "^0.12.2"
+  },
+  "files": [
+    "index.html",
+    "styles.css",
+    "video-processor.js",
+    "video-processor-enhanced.js",
+    "bingkai.png",
+    "README.md"
+  ]
+}

@@ -1,55 +1,37 @@
 {
-  "name": "bingkai-foto-app",
-  "version": "1.0.0",
-  "description": "Enhanced aplikasi web untuk menambahkan bingkai pada foto dan video dengan processing berkualitas tinggi menggunakan FFmpeg.js. Dilengkapi progress bar yang berfungsi dan video processing tanpa lag.",
-  "main": "index.html",
+  "name": "vite-react-starter",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
   "scripts": {
-    "start": "python3 -m http.server 8000",
-    "dev": "python3 -m http.server 8000",
-    "serve": "python3 -m http.server 8000"
+    "dev": "vite",
+    "build": "vite build",
+    "lint": "eslint .",
+    "preview": "vite preview"
   },
-  "keywords": [
-    "photo-frame",
-    "video-frame",
-    "web-camera",
-    "canvas-api",
-    "media-recorder",
-    "ffmpeg-js",
-    "video-processing",
-    "webassembly",
-    "high-quality-video",
-    "html5",
-    "css3",
-    "javascript"
-  ],
-  "author": "Your Name",
-  "license": "MIT",
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/yourusername/bingkai-foto-app.git"
-  },
-  "bugs": {
-    "url": "https://github.com/yourusername/bingkai-foto-app/issues"
-  },
-  "homepage": "https://github.com/yourusername/bingkai-foto-app#readme",
-  "engines": {
-    "node": ">=14.0.0"
-  },
-  "browserslist": [
-    "> 1%",
-    "last 2 versions",
-    "not dead"
-  ],
   "dependencies": {
     "@ffmpeg/ffmpeg": "^0.12.15",
-    "@ffmpeg/util": "^0.12.2"
+    "@ffmpeg/util": "^0.12.2",
+    "fabric": "^6.7.1",
+    "html2canvas": "^1.4.1",
+    "lucide-react": "^0.542.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-webcam": "^7.2.0"
   },
-  "files": [
-    "index.html",
-    "styles.css",
-    "video-processor.js",
-    "video-processor-enhanced.js",
-    "bingkai.png",
-    "README.md"
-  ]
+  "devDependencies": {
+    "@eslint/js": "^9.9.1",
+    "@types/react": "^18.3.5",
+    "@types/react-dom": "^18.3.0",
+    "@vitejs/plugin-react": "^4.3.1",
+    "autoprefixer": "^10.4.21",
+    "eslint": "^9.9.1",
+    "eslint-plugin-react": "^7.35.0",
+    "eslint-plugin-react-hooks": "^5.1.0-rc.0",
+    "eslint-plugin-react-refresh": "^0.4.11",
+    "globals": "^15.9.0",
+    "postcss": "^8.5.6",
+    "tailwindcss": "^3.4.0",
+    "vite": "^5.4.2"
+  }
 }
